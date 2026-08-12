@@ -17,12 +17,20 @@ const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : get
 const auth: Auth = getAuth(app);
 
 // Initialize Firestore with Force Long Polling for stability in Cloud Workstations
+// This prevents "Client is offline" errors caused by WebSocket blocking.
 let db: Firestore;
 if (typeof window !== 'undefined') {
   db = initializeFirestore(app, {
     experimentalForceLongPolling: true,
     useFetchStreams: false,
     cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+  });
+  
+  // Optional: Initialize Analytics only on client
+  import('firebase/analytics').then(({ getAnalytics, isSupported }) => {
+    isSupported().then(yes => {
+      if (yes) getAnalytics(app);
+    });
   });
 } else {
   db = initializeFirestore(app, {});
