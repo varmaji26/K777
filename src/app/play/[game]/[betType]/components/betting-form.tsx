@@ -1,0 +1,470 @@
+'use client';
+
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import type { Game, BetType, Session, Bid } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { cn, getGameTimestamps } from '@/lib/utils';
+import { useUserStore, useSettingsStore } from '@/lib/store';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { CalendarIcon, Send, Trash2, PlusCircle } from 'lucide-react';
+import { format } from 'date-fns';
+import { collection, serverTimestamp, doc, runTransaction, increment } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { logTransaction } from '@/lib/transactions';
+import { Loader } from '@/components/loader';
+
+interface BettingFormProps {
+  game: Game;
+  betType: BetType;
+}
+
+const formSchema = z.object({
+    session: z.enum(['Open', 'Close']),
+    classicBids: z.array(z.object({
+        digit: z.string(),
+        points: z.coerce.number().optional(),
+    })),
+    advancedBidNumber: z.string().optional(),
+    advancedAmount: z.coerce.number().optional(),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
+interface BidItem {
+    number: string;
+    amount: number;
+}
+
+export function BettingForm({ game, betType }: BettingFormProps) {
+  const { toast } = useToast();
+  const { currentUser } = useUserStore();
+  const { appSettings } = useSettingsStore();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const sessionParam = searchParams.get('session') as 'Open' | 'Close' | null;
+  
+  const minBid = appSettings.minBidSingleDigit || 10;
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
+  const [isBettingOpen, setIsBettingOpen] = useState(true);
+  const [isCloseSessionAllowed, setIsCloseSessionAllowed] = useState(false);
+  const [isOpenSessionAllowed, setIsOpenSessionAllowed] = useState(true);
+
+  const [mode, setMode] = useState<'Classic' | 'Advanced'>('Classic');
+  const [submittedBids, setSubmittedBids] = useState<BidItem[]>([]);
+
+  const defaultSession = useMemo(() => {
+    if (sessionParam && (sessionParam === 'Open' || sessionParam === 'Close')) {
+        return sessionParam;
+    }
+    const now = new Date();
+    const { openTime } = getGameTimestamps(game);
+    return now.getTime() >= openTime.getTime() ? 'Close' : 'Open';
+  }, [game, sessionParam]);
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      session: defaultSession,
+      classicBids: Array.from({ length: 10 }, (_, i) => ({ digit: i.toString(), points: undefined })),
+      advancedBidNumber: '',
+      advancedAmount: undefined,
+    },
+    mode: "onChange"
+  });
+  
+  const { fields } = useFieldArray({
+    control: form.control,
+    name: "classicBids"
+  });
+
+  const totalAmount = useMemo(() => {
+    return submittedBids.reduce((acc, bid) => acc + Number(bid.amount), 0);
+  }, [submittedBids]);
+
+  useEffect(() => {
+    const checkTime = () => {
+        const now = new Date();
+        const { openTime, closeTime } = getGameTimestamps(game);
+        
+        const openAllowed = now.getTime() < openTime.getTime();
+        const closeAllowed = now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
+
+        setIsOpenSessionAllowed(openAllowed);
+        setIsCloseSessionAllowed(closeAllowed);
+        setIsBettingOpen(openAllowed || closeAllowed);
+
+        const currentSession = form.getValues('session');
+        if (!openAllowed && currentSession === 'Open' && closeAllowed) {
+            form.setValue('session', 'Close');
+        }
+    };
+
+    checkTime();
+    const timer = setInterval(checkTime, 500);
+    return () => clearInterval(timer);
+  }, [game, form]);
+  
+  useEffect(() => {
+     form.setValue('session', defaultSession);
+  }, [defaultSession, form]);
+  
+  const handleAddClassicBids = () => {
+    const classicBidsData = form.getValues('classicBids');
+    const newBids = classicBidsData
+        .filter(bid => bid.points && Number(bid.points) >= minBid)
+        .map(bid => ({ number: bid.digit, amount: Number(bid.points!) }));
+
+    if (newBids.length === 0) {
+        toast({ title: 'No Bids to Add', description: `Please enter points (minimum ${minBid}) for at least one digit.`, variant: 'destructive' });
+        return;
+    }
+    
+    setSubmittedBids(prev => [...prev, ...newBids]);
+    form.reset({
+        ...form.getValues(),
+        classicBids: Array.from({ length: 10 }, (_, i) => ({ digit: i.toString(), points: undefined })),
+    });
+    toast({ title: 'Bids Added', description: `${newBids.length} bid(s) have been added to your list.` });
+  };
+
+  const handleAddAdvancedBid = () => {
+    const number = form.getValues('advancedBidNumber');
+    const amount = form.getValues('advancedAmount');
+
+    if (!number || !/^\d{1}$/.test(number)) {
+        toast({ title: 'Invalid Number', description: 'Please enter a valid single digit.', variant: 'destructive' });
+        return;
+    }
+    const numAmount = Number(amount);
+    if (!numAmount || numAmount < minBid) {
+        toast({ title: 'Invalid Amount', description: `Minimum bid amount is ${minBid}.`, variant: 'destructive' });
+        return;
+    }
+    setSubmittedBids(prev => [...prev, {number, amount: numAmount}]);
+    form.setValue('advancedBidNumber', '');
+    form.setValue('advancedAmount', undefined);
+  };
+
+  const removeBid = (index: number) => {
+    setSubmittedBids(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleFinalSubmit = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    
+    const bidsToSubmit = [...submittedBids];
+    if (bidsToSubmit.length === 0) {
+      toast({ title: 'No Bids to Submit', description: 'Please add at least one valid bid.', variant: 'destructive' });
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!currentUser) {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+      return;
+    }
+
+    const totalBetAmount = Number(totalAmount);
+    const userBalance = Number(currentUser.balance || 0) + Number(currentUser.bonusBalance || 0);
+
+    if (totalBetAmount > userBalance) {
+        toast({
+            title: 'Insufficient Balance',
+            description: `You need ${totalBetAmount} points, but you have ₹${userBalance.toFixed(2)}.`,
+            variant: 'destructive',
+        });
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
+        return;
+    }
+
+    setSubmittedBids([]);
+
+    const session = form.getValues('session');
+    const userDocRef = doc(db, 'users', currentUser.id);
+    
+    try {
+        await runTransaction(db, async (transaction) => {
+            const userSnap = await transaction.get(userDocRef);
+            if (!userSnap.exists()) throw new Error("User document does not exist!");
+            
+            const userData = userSnap.data();
+            let currentRealBalance = Number(userData.balance || 0);
+            let currentBonusBalance = Number(userData.bonusBalance || 0);
+
+            if (totalBetAmount > (currentRealBalance + currentBonusBalance)) {
+                throw new Error("Insufficient total balance!");
+            }
+
+            let totalRealToDeduct = 0;
+            let totalBonusToDeduct = 0;
+
+            for (const bidItem of bidsToSubmit) {
+                const bidAmount = Number(bidItem.amount);
+                let bidSource: 'real' | 'bonus' = 'real';
+                let realDeduction = 0;
+                let bonusDeduction = 0;
+
+                if (currentBonusBalance >= bidAmount) {
+                    bidSource = 'bonus';
+                    bonusDeduction = bidAmount;
+                    currentBonusBalance -= bonusDeduction;
+                } else if (currentBonusBalance > 0) {
+                    bidSource = 'real';
+                    bonusDeduction = currentBonusBalance;
+                    realDeduction = bidAmount - bonusDeduction;
+                    currentBonusBalance = 0;
+                    currentRealBalance -= realDeduction;
+                } else {
+                    bidSource = 'real';
+                    realDeduction = bidAmount;
+                    currentRealBalance -= realDeduction;
+                }
+
+                totalRealToDeduct += Number(realDeduction);
+                totalBonusToDeduct += Number(bonusDeduction);
+
+                const bidData = {
+                    userId: currentUser.id,
+                    displayName: currentUser.name,
+                    mobile: currentUser.mobile,
+                    gameId: game.id,
+                    gameName: game.name,
+                    betType: betType,
+                    session: session,
+                    numbers: [bidItem.number],
+                    totalAmount: Number(bidAmount),
+                    status: 'running',
+                    betSource: bidSource,
+                    createdAt: serverTimestamp()
+                };
+
+                const newBidRef = doc(collection(db, "bids"));
+                transaction.set(newBidRef, bidData);
+            }
+
+            transaction.update(userDocRef, {
+                balance: increment(-Number(totalRealToDeduct)),
+                bonusBalance: increment(-Number(totalBonusToDeduct))
+            });
+
+            await logTransaction({
+                userId: currentUser.id,
+                userName: currentUser.name,
+                amount: -Number(totalBetAmount),
+                type: 'bid_placed',
+                description: `Bid placed on ${game.name} (${betType}, ${session}). Total Numbers: ${bidsToSubmit.length}`,
+                balanceBefore: Number(userData.balance || 0),
+                balanceAfter: Number(userData.balance || 0) - Number(totalRealToDeduct),
+                bonusBalanceBefore: Number(userData.bonusBalance || 0),
+                bonusBalanceAfter: Number(userData.bonusBalance || 0) - Number(totalBonusToDeduct),
+            }, transaction);
+        });
+
+        toast({
+            title: '✅ Bids Submitted!',
+            description: `${totalBetAmount} points deducted. Good luck!`,
+            className: 'bg-green-600 text-white',
+        });
+
+        form.reset({
+            session: form.getValues('session'),
+            classicBids: Array.from({ length: 10 }, (_, i) => ({ digit: i.toString(), points: undefined })),
+            advancedBidNumber: '',
+            advancedAmount: undefined,
+        });
+
+    } catch (error: any) {
+        console.error("Bet Submission Error:", error);
+        toast({ 
+            title: 'Submission Failed', 
+            description: error.message || 'Something went wrong.', 
+            variant: 'destructive' 
+        });
+        setSubmittedBids(bidsToSubmit);
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
+    } finally {
+        setIsSubmitting(false);
+        isSubmittingRef.current = false;
+    }
+  };
+
+  const isFormDisabled = !isBettingOpen;
+
+  return (
+    <Form {...form}>
+      {isSubmitting && (
+        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-6">
+            <div className="bg-header p-8 rounded-3xl flex flex-col items-center gap-4 text-center shadow-2xl animate-in zoom-in-95 duration-200">
+                <Loader className="h-12 w-12 text-yellow-400" />
+                <p className="font-black text-white text-lg">Processing Your Bids...</p>
+                <p className="text-xs text-blue-100 font-bold uppercase tracking-widest">Please wait, do not close the app</p>
+            </div>
+        </div>
+      )}
+      <form onSubmit={(e) => { e.preventDefault(); handleFinalSubmit(); }} className="space-y-6">
+        <Card>
+            <CardContent className="p-4 space-y-4 pb-40">
+                <p className="text-center text-sm font-medium text-[#325E6A]">{game.name}</p>
+                <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-3 flex items-center gap-3">
+                    <CalendarIcon className="h-4 w-4 text-[#325E6A]" />
+                    <p className="text-sm font-medium text-[#325E6A]">{format(new Date(), "EEEE, dd MMMM yyyy")}</p>
+                </div>
+
+                <div className="p-1 rounded-full grid grid-cols-2 gap-1">
+                    <Button type="button" onClick={() => setMode('Classic')} variant={mode === 'Classic' ? 'default' : 'ghost'} className={cn("rounded-full shadow-md text-sm", mode === 'Classic' ? '' : 'text-[#325E6A] hover:bg-blue-100')}>Classic</Button>
+                    <Button type="button" onClick={() => setMode('Advanced')} variant={mode === 'Advanced' ? 'default' : 'ghost'} className={cn("rounded-full shadow-md text-sm", mode === 'Advanced' ? '' : 'text-[#325E6A] hover:bg-blue-100')}>Advanced</Button>
+                </div>
+
+                <div>
+                    <FormLabel className="text-xs font-medium">Choose Session</FormLabel>
+                    <Controller
+                        control={form.control}
+                        name="session"
+                        render={({ field }) => (
+                            <div className="mt-2 grid grid-cols-2 gap-2">
+                                <Button
+                                    type="button"
+                                    variant={field.value === 'Open' ? 'default' : 'outline'}
+                                    onClick={() => field.onChange('Open')}
+                                    disabled={!isOpenSessionAllowed || isSubmitting}
+                                    className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg" : 'text-[#325E6A] hover:bg-blue-100')}
+                                >
+                                    Open
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant={field.value === 'Close' ? 'default' : 'outline'}
+                                    onClick={() => field.onChange('Close')}
+                                    disabled={!isCloseSessionAllowed || isSubmitting}
+                                    className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg" : 'text-[#325E6A] hover:bg-blue-100')}
+                                >
+                                    Close
+                                </Button>
+                            </div>
+                        )}
+                    />
+                </div>
+                
+                {mode === 'Classic' ? (
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+                            {fields.map((field, index) => (
+                                <FormField
+                                    key={field.id}
+                                    control={form.control}
+                                    name={`classicBids.${index}.points`}
+                                    render={({ field: inputField }) => (
+                                        <FormItem>
+                                            <div className="flex items-center h-8 bg-background rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-primary shadow-md">
+                                                <FormLabel className="flex items-center justify-center h-full w-9 bg-orange-400 text-white border-r text-xs font-bold">
+                                                    {field.digit}
+                                                </FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="number"
+                                                        {...inputField}
+                                                        onChange={(e) => {
+                                                            const value = e.target.value;
+                                                            if (value === '' || parseInt(value) >= 0) {
+                                                                inputField.onChange(e);
+                                                            }
+                                                        }}
+                                                        value={inputField.value ?? ''}
+                                                        className="h-full bg-background border-none text-center text-xs focus-visible:ring-0 focus-visible:ring-offset-0"
+                                                        disabled={isFormDisabled || isSubmitting}
+                                                    />
+                                                </FormControl>
+                                            </div>
+                                        </FormItem>
+                                    )}
+                                />
+                            ))}
+                        </div>
+                        <Button type="button" onClick={handleAddClassicBids} className="w-full" size="sm" disabled={isFormDisabled || isSubmitting}>
+                           <PlusCircle className="mr-2 h-4 w-4" /> Add All Bids
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        <FormField
+                            control={form.control}
+                            name="advancedBidNumber"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-xs">Add Bid Number</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="Enter single digit" {...field} value={field.value ?? ''} maxLength={1} className="text-center text-sm h-9" disabled={isFormDisabled || isSubmitting} />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="advancedAmount"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-xs">Add Amount</FormLabel>
+                                    <FormControl>
+                                        <Input type="number" placeholder={`Enter amount (min ${minBid})`} {...field} value={field.value ?? ''} className="text-center text-sm h-9" disabled={isFormDisabled || isSubmitting} />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                        />
+                        <Button type="button" onClick={handleAddAdvancedBid} className="w-full text-sm" size="sm" disabled={isFormDisabled || isSubmitting}>
+                            <Send className="mr-2 h-4 w-4" /> Add Bid
+                        </Button>
+                    </div>
+                )}
+                
+                {submittedBids.length > 0 && (
+                    <div className="space-y-2 pt-4">
+                        <h4 className="text-xs font-medium text-center">Your Bids List</h4>
+                        <div className="border rounded-lg p-2 space-y-2 max-h-48 overflow-y-auto">
+                            {submittedBids.map((bid, index) => (
+                                <div key={index} className="flex justify-between items-center bg-muted/50 p-1 px-2 rounded-md animate-in fade-in-0">
+                                    <p className="text-[10px]">Number: <span className="font-bold">{bid.number}</span></p>
+                                    <p className="text-[10px]">Amount: <span className="font-bold">₹{bid.amount}</span></p>
+                                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeBid(index)} disabled={isSubmitting}>
+                                        <Trash2 className="h-3 w-3 text-destructive"/>
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+            <CardFooter className="fixed bottom-0 left-0 right-0 max-w-sm mx-auto bg-card border-t p-4 flex items-center justify-between gap-4">
+                <div className="flex flex-col text-left">
+                    <span className="text-xs text-muted-foreground">Total Amount</span>
+                    <span className="font-bold text-[#325E6A] text-lg">₹{totalAmount}</span>
+                </div>
+                <Button 
+                    type="button" 
+                    onClick={handleFinalSubmit} 
+                    size="lg" 
+                    className={cn("w-2/3 text-sm bg-[#325E6A] hover:bg-[#325E6A]/90", isSubmitting && "pointer-events-none opacity-50")} 
+                    disabled={isSubmitting || isFormDisabled || submittedBids.length === 0}
+                >
+                    {isSubmitting ? <Loader className="mr-2 h-4 w-4 mr-2" /> : 'Continue'}
+                </Button>
+            </CardFooter>
+        </Card>
+      </form>
+    </Form>
+  );
+}

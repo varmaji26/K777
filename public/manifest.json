@@ -1,0 +1,21 @@
+{
+  "name": "NX567",
+  "short_name": "NX567",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#154c79",
+  "theme_color": "#154c79",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "gcm_sender_id": "103953800507"
+}

@@ -1,0 +1,158 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * MATKA GENIUS SECURITY RULES
+     *
+     * Core Philosophy:
+     * This ruleset enforces a strict user-ownership model for all private data (profiles, bids, transactions) 
+     * and a public-read/admin-write model for global application content (settings, games, articles). 
+     * Administrative privileges are decoupled from user profiles and managed via a dedicated 
+     * marker collection for high-performance authorization checks.
+     *
+     * Data Structure:
+     * - User-specific data is hierarchically organized under /users/{userId}.
+     * - Global application data is segregated under /artifacts/{appId}/public/data.
+     * - Administrative roles are stored in /adminRoles/{adminId}.
+     *
+     * Key Security Decisions:
+     * - Authorization Independence: No get() calls are required to authorize user data access 
+     *   as ownership is derived directly from the document path.
+     * - Admin Validation: Admin checks use the exists() function on the /adminRoles collection 
+     *   to avoid profile-based lookups.
+     * - Relational Integrity: On creation of nested user data, we enforce that the internal 
+     *   'userId' field matches the authenticated user and the document path.
+     * - Immutability: Critical relational fields like 'userId' are locked after creation.
+     */
+
+    // --- HELPER FUNCTIONS ---
+
+    /** @description Checks if the user is authenticated with a valid UID. */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** @description Checks if the authenticated user's UID matches the provided userId. */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** @description Combines ownership check with document existence for updates and deletes. */
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    /** @description Checks if the authenticated user has an entry in the adminRoles collection. */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/adminRoles/$(request.auth.uid));
+    }
+
+    // --- COLLECTION RULES ---
+
+    /**
+     * @description Rules for user profile documents. Users can manage their own profile; admins have full access.
+     * @path /users/{userId}
+     * @allow (get) If request.auth.uid == 'user_123'
+     * @deny (create) If request.auth.uid != 'user_123' (Identity spoofing)
+     * @principle Ownership and Relational Integrity.
+     */
+    match /users/{userId} {
+      allow get, list: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId) || isAdmin();
+
+      /**
+       * @description Rules for individual bids/bets. Restricted to the user who placed them.
+       * @path /users/{userId}/bids/{bidId}
+       * @allow (list) If query is scoped to user's own subcollection.
+       * @deny (update) If user attempts to change the userId field.
+       * @principle Path-based ownership and field immutability.
+       */
+      match /bids/{bidId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+        allow delete: if isExistingOwner(userId) || isAdmin();
+      }
+
+      /**
+       * @description Rules for financial transactions (Deposits/Withdrawals). Restricted to the account owner.
+       * @path /users/{userId}/transactions/{transactionId}
+       * @allow (create) If authenticated user creates a transaction for their own userId.
+       * @deny (delete) If the document does not exist.
+       * @principle Robustness for state-changing operations and Relational Integrity.
+       */
+      match /transactions/{transactionId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+        allow delete: if isExistingOwner(userId) || isAdmin();
+      }
+    }
+
+    /**
+     * @description Rules for the administrative role markers. Read-only for the admin themselves.
+     * @path /adminRoles/{adminId}
+     * @allow (get) If a user wants to check their own admin status.
+     * @deny (write) Any client-side write operation. Admin status is managed by backend/system.
+     * @principle Global Roles (DBAC) via existence checks.
+     */
+    match /adminRoles/{adminId} {
+      allow get: if isOwner(adminId);
+      allow list: if isAdmin();
+      allow write: if false; 
+    }
+
+    // --- PUBLIC ARTIFACTS / GLOBAL DATA ---
+
+    match /artifacts/{appId}/public/data {
+      
+      /**
+       * @description Global application configuration. Publicly readable, admin writeable.
+       * @path /artifacts/{appId}/public/data/appSettings/main_settings
+       * @allow (get) Publicly accessible for app initialization.
+       * @deny (update) If user is not an authorized administrator.
+       * @principle Public Read with Admin-Only Writes.
+       */
+      match /appSettings/main_settings {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+
+      /**
+       * @description Public notices and announcements.
+       * @path /artifacts/{appId}/public/data/notices/main_notice
+       * @allow (get) Publicly accessible.
+       * @deny (create) Non-admin users attempting to post notices.
+       */
+      match /notices/main_notice {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+
+      /**
+       * @description Informational articles and news.
+       * @path /artifacts/{appId}/public/data/articles/{articleId}
+       * @allow (list) All users can browse articles.
+       * @deny (delete) Non-admin users.
+       */
+      match /articles/{articleId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+
+      /**
+       * @description Definitions and schedules for Matka games.
+       * @path /artifacts/{appId}/public/data/games/{gameId}
+       * @allow (list) Users browsing available games to bet on.
+       * @deny (update) Regular users attempting to change game times.
+       */
+      match /games/{gameId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+    }
+  }
+}

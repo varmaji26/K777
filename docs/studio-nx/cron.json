@@ -1,0 +1,4 @@
+{
+  "schedule": "*/1 * * * *",
+  "path": "/api/cron/auto-reset"
+}

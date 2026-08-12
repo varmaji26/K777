@@ -1,0 +1,238 @@
+@import url(https://fonts.googleapis.com/css?family=Dosis:200,600);
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 96%;
+    --foreground: 224 71% 4%;
+    --card: 220 0% 100%;
+    --card-foreground: 224 71% 4%;
+    --popover: 220 0% 100%;
+    --popover-foreground: 224 71% 4%;
+    --primary: 194 36% 31%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 220 15% 90%;
+    --secondary-foreground: 224 71% 4%;
+    --muted: 220 9% 45%;
+    --muted-foreground: 220 9% 45%;
+    --accent: 220 15% 90%;
+    --accent-foreground: 224 71% 4%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 194 36% 31%;
+    --radius: 0.8rem;
+    --chart-1: 205 90% 45%;
+    --chart-2: 40 90% 55%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+  }
+ 
+  .dark {
+    --background: 224 71% 4%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+    --popover: 224 71% 4%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 194 36% 31%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 215 28% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 215 28% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 215 28% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 215 28% 17%;
+    --input: 215 28% 17%;
+    --ring: 194 36% 31%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html, body {
+    -ms-overflow-style: none !important;  /* IE and Edge */
+    scrollbar-width: none !important;  /* Firefox */
+    touch-action: pan-y; /* Disable pinch-to-zoom */
+  }
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none !important; /* Webkit browsers */
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+    .bg-header {
+      background: linear-gradient(180deg, #325E6A 0%, #24464d 100%);
+    }
+    .text-balance {
+      color: hsl(var(--primary));
+    }
+    .animate-border-spin {
+      animation: border-spin 4s linear infinite;
+    }
+    .animate-text-float-glow {
+      animation: text-float-glow 4s ease-in-out infinite alternate;
+    }
+
+    @keyframes text-float-glow {
+      0% {
+        text-shadow: 0 0 5px hsl(var(--primary-foreground)), 0 0 10px hsl(var(--primary-foreground)), 0 0 15px #ff8c00, 0 0 20px #ff8c00;
+        transform: translateY(0px);
+      }
+      50% {
+        text-shadow: 0 0 10px hsl(var(--primary-foreground)), 0 0 20px #ff8c00, 0 0 30px #ff8c00, 0 0 40px #ff8c00;
+        transform: translateY(-5px);
+      }
+      100% {
+        text-shadow: 0 0 5px hsl(var(--primary-foreground)), 0 0 10px hsl(var(--primary-foreground)), 0 0 15px #ff8c00, 0 0 20px #ff8c00;
+        transform: translateY(0px);
+      }
+    }
+}
+
+@layer components {
+  .marquee {
+    display: flex;
+    width: max-content;
+    white-space: nowrap;
+    animation: marquee var(--marquee-duration, 15s) linear infinite;
+  }
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  .animated-border-card {
+    @apply relative z-0 overflow-hidden rounded-lg;
+    padding: 1px; /* This creates the border effect */
+  }
+
+  .animated-border-card::before {
+    content: '';
+    @apply absolute -top-1/2 -left-1/2 w-[200%] h-[200%] z-[-1] animate-border-spin;
+    background: conic-gradient(
+      from 90deg at 50% 50%,
+      transparent 0%,
+      transparent 90%,
+      #ffdd00,
+      #ffaa00,
+      transparent 100%
+    );
+  }
+
+  .animate-won-glow {
+    animation: won-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes won-glow {
+    0%, 100% {
+      box-shadow: 0 0 5px theme('colors.orange.400'), 0 0 10px theme('colors.orange.400');
+    }
+    50% {
+      box-shadow: 0 0 20px theme('colors.orange.500'), 0 0 30px theme('colors.orange.500');
+    }
+  }
+
+  .bar-spinner {
+    position: relative;
+  }
+
+  .bar-spinner > div {
+    position: absolute;
+    left: 46%;
+    top: 37%;
+    width: 8%;
+    height: 26%;
+    background: currentColor;
+    border-radius: 50px;
+    animation: bar-spinner-fade 1s linear infinite;
+  }
+
+  @keyframes bar-spinner-fade {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0.25;
+    }
+  }
+
+  .bar-spinner > div:nth-of-type(1) {
+    transform: rotate(0deg) translate(0, -140%);
+    animation-delay: 0s;
+  }
+
+  .bar-spinner > div:nth-of-type(2) {
+    transform: rotate(30deg) translate(0, -140%);
+    animation-delay: -0.0833s;
+  }
+
+  .bar-spinner > div:nth-of-type(3) {
+    transform: rotate(60deg) translate(0, -140%);
+    animation-delay: -0.1667s;
+  }
+
+  .bar-spinner > div:nth-of-type(4) {
+    transform: rotate(90deg) translate(0, -140%);
+    animation-delay: -0.25s;
+  }
+
+  .bar-spinner > div:nth-of-type(5) {
+    transform: rotate(120deg) translate(0, -140%);
+    animation-delay: -0.3333s;
+  }
+
+  .bar-spinner > div:nth-of-type(6) {
+    transform: rotate(150deg) translate(0, -140%);
+    animation-delay: -0.4167s;
+  }
+
+  .bar-spinner > div:nth-of-type(7) {
+    transform: rotate(180deg) translate(0, -140%);
+    animation-delay: -0.5s;
+  }
+
+  .bar-spinner > div:nth-of-type(8) {
+    transform: rotate(210deg) translate(0, -140%);
+    animation-delay: -0.5833s;
+  }
+
+  .bar-spinner > div:nth-of-type(9) {
+    transform: rotate(240deg) translate(0, -140%);
+    animation-delay: -0.6667s;
+  }
+
+  .bar-spinner > div:nth-of-type(10) {
+    transform: rotate(270deg) translate(0, -140%);
+    animation-delay: -0.75s;
+  }
+
+  .bar-spinner > div:nth-of-type(11) {
+    transform: rotate(300deg) translate(0, -140%);
+    animation-delay: -0.8333s;
+  }
+
+  .bar-spinner > div:nth-of-type(12) {
+    transform: rotate(330deg) translate(0, -140%);
+    animation-delay: -0.9167s;
+  }
+}
