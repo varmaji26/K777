@@ -56,6 +56,9 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
     const [newUsersCount, setNewUsersCount] = useState(0);
 
     useEffect(() => {
+        // Guard: Only fetch counts if we have an admin user
+        if (!currentUser?.isAdmin) return;
+
         const qWithdrawals = query(collection(db, "withdrawals"), where("status", "==", "pending"));
         const unsubWithdrawals = onSnapshot(qWithdrawals, (snapshot) => setPendingWithdrawals(snapshot.size), (err) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -79,7 +82,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
             const lastViewedWinsTimestamp = parseInt(localStorage.getItem('lastViewedWinsTimestamp') || '0', 10);
             const newWins = snapshot.docs.filter(doc => {
                 const data = doc.data();
-                const createdAtMillis = data.createdAt.toMillis();
+                const createdAtMillis = data.createdAt ? data.createdAt.toMillis() : 0;
                 return data.status === 'won' && createdAtMillis > lastViewedWinsTimestamp;
             });
             setNewWinsCount(newWins.length);
@@ -112,7 +115,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
             unsubBids();
             unsubUsers();
         };
-    }, [pathname]);
+    }, [currentUser, pathname]);
     
     const adminNavLinks = [
       { key: 'dashboard', href: '/admin', label: 'Dashboard', icon: Home },

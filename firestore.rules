@@ -13,7 +13,7 @@ service cloud.firestore {
       allow read, write: if true;
     }
     
-    // Explicitly mentioning common collections to ensure deployment triggers
+    // Explicitly mentioning common collections to ensure deployment triggers and broad access
     match /games/{gameId} {
       allow read, write: if true;
     }
@@ -47,6 +47,10 @@ service cloud.firestore {
     }
 
     match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    match /notifications/{notifId} {
       allow read, write: if true;
     }
   }
