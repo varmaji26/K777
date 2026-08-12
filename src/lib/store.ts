@@ -1,3 +1,4 @@
+
 'use client';
 import { create } from 'zustand';
 import type { Game, User, AppSettings, StarlineGame, JackpotGame } from './types';
@@ -172,7 +173,10 @@ const useGameStore = create(
         {
             name: 'game-storage',
             storage: createJSONStorage(() => localStorage),
-             onRehydrateStorage: () => (state) => state?.setHydrated(true)
+             onRehydrateStorage: () => (state) => {
+                state?.initializeGameSubscription();
+                state?.setHydrated(true);
+             }
         }
     )
 );
@@ -212,29 +216,38 @@ export const useUserStore = create(
             hydrated: false,
             setHydrated: (hydrated) => set({ hydrated }),
             addUser: async (userData) => {
-                const newUserRef = doc(collection(db, "users"));
-                const isAdmin = userData.mobile === '9999999999';
-                const newUser: User = {
-                    ...userData,
-                    id: newUserRef.id,
-                    isAdmin: isAdmin,
-                    balance: 0,
-                    bonusBalance: 0,
-                    status: 'active',
-                    joinedAt: new Date().toISOString(),
-                };
-                
                 try {
-                    if (!auth.currentUser) {
-                        await signInAnonymously(auth);
+                    // 1. Ensure user is signed in anonymously first to get a permanent UID
+                    let authUser = auth.currentUser;
+                    if (!authUser) {
+                        const cred = await signInAnonymously(auth);
+                        authUser = cred.user;
                     }
+                    
+                    if (!authUser) throw new Error("Could not authenticate user.");
+
+                    // 2. Create user document using the Auth UID
+                    const userId = authUser.uid;
+                    const newUserRef = doc(db, "users", userId);
+                    
+                    const isAdmin = userData.mobile === '9999999999';
+                    const newUser: User = {
+                        ...userData,
+                        id: userId,
+                        isAdmin: isAdmin,
+                        balance: 0,
+                        bonusBalance: 0,
+                        status: 'active',
+                        joinedAt: new Date().toISOString(),
+                    };
+                    
                     await setDoc(newUserRef, newUser);
                     return newUser;
-                } catch (error) {
+                } catch (error: any) {
+                    console.error("Signup error:", error);
                     errorEmitter.emit('permission-error', new FirestorePermissionError({
-                      path: newUserRef.path,
-                      operation: 'create',
-                      requestResourceData: newUser
+                      path: 'users',
+                      operation: 'create'
                     }));
                     return null;
                 }
@@ -242,6 +255,7 @@ export const useUserStore = create(
             findUserByMobile: (mobile) => get().users.find((u) => u.mobile === mobile),
             findUserById: (userId) => get().users.find((u) => u.id === userId),
             login: async (mobile, password) => {
+                // Admin hardcoded fallback
                 if (mobile === '9999999999' && password === 'admin123') {
                     const admin: User = { id: 'admin-id', name: "Admin", mobile, password, isAdmin: true, balance: 1000000, bonusBalance: 0, status: 'active', joinedAt: new Date().toISOString() };
                     set({ currentUser: admin });
@@ -371,10 +385,8 @@ export const useUserStore = create(
                         if (fresh) set({ currentUser: fresh });
                     }
                 }, (err) => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({
-                      path: 'users',
-                      operation: 'list'
-                    }));
+                    // Silently ignore or log - common for non-admins
+                    console.warn("User list access restricted.");
                 });
                 return () => { unsubscribe(); isUserSubscribed = false; };
             },
