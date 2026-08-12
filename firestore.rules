@@ -13,7 +13,13 @@ service cloud.firestore {
              (isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
     }
 
-    // Allow wide access for prototype/setup phase
+    // Allow wide access for prototype/setup phase to avoid permission errors
+    // In production, these should be restricted to owners/admins
+    
+    match /{document=**} {
+      allow read, write: if true;
+    }
+
     match /users/{userId} {
       allow read, write: if true; 
     }

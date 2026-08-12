@@ -20,6 +20,8 @@ import {
 import { db, auth } from './firebase';
 import { signOut, signInAnonymously } from 'firebase/auth';
 import { logTransaction } from './transactions';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const parseTime = (timeString: string) => {
     if (!timeString || !timeString.includes(':')) return 9999;
@@ -77,14 +79,32 @@ const useGameStore = create(
                   ...game, 
                   id: ref.id,
                   createdAt: serverTimestamp() 
-                }).catch(e => console.error("Game Add Error:", e));
+                }).catch(e => {
+                  errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: ref.path,
+                    operation: 'create',
+                    requestResourceData: game
+                  }));
+                });
             },
             updateGame: async (gameId, updates) => {
-                updateDoc(doc(db, 'games', gameId), updates).catch(e => console.error("Update error:", e));
+                const ref = doc(db, 'games', gameId);
+                updateDoc(ref, updates).catch(e => {
+                  errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: ref.path,
+                    operation: 'update',
+                    requestResourceData: updates
+                  }));
+                });
             },
             deleteGame: async (gameId) => {
                 const gameDoc = doc(db, 'games', gameId);
-                deleteDoc(gameDoc).catch(e => console.error("Delete error:", e));
+                deleteDoc(gameDoc).catch(e => {
+                  errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: gameDoc.path,
+                    operation: 'delete'
+                  }));
+                });
             },
             initializeGameSubscription: () => {
                 if (isGameSubscribed) return () => {};
@@ -94,23 +114,43 @@ const useGameStore = create(
                     const games = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Game));
                     games.sort((a, b) => parseTime(a.openTime) - parseTime(b.openTime));
                     set({ games });
-                }, (err) => console.log("Games subscription wait..."));
+                }, (err) => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                      path: 'games',
+                      operation: 'list'
+                    }));
+                });
 
                 const unsubStarline = onSnapshot(collection(db, 'starlineGames'), (snap) => {
                     const games = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as StarlineGame));
                     games.sort((a, b) => parseTime(a.time) - parseTime(b.time));
                     set({ starlineGames: games });
-                }, (err) => console.log("Starline sub wait..."));
+                }, (err) => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                      path: 'starlineGames',
+                      operation: 'list'
+                    }));
+                });
 
                 const unsubJackpot = onSnapshot(collection(db, 'jackpotGames'), (snap) => {
                     const games = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as JackpotGame));
                     games.sort((a, b) => parseTime(a.time) - parseTime(b.time));
                     set({ jackpotGames: games });
-                }, (err) => console.log("Jackpot sub wait..."));
+                }, (err) => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                      path: 'jackpotGames',
+                      operation: 'list'
+                    }));
+                });
 
                 const unsubSettings = onSnapshot(doc(db, 'settings', 'app-settings'), (snap) => {
                     if (snap.exists()) set({ marketOpenTime: snap.data().marketOpenTime || '12:00 AM' });
-                }, (err) => console.log("Settings sub wait..."));
+                }, (err) => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                      path: 'settings/app-settings',
+                      operation: 'get'
+                    }));
+                });
 
                 return () => {
                     unsubGames(); unsubStarline(); unsubJackpot(); unsubSettings();
@@ -121,7 +161,12 @@ const useGameStore = create(
                 const snap = await getDocs(collection(db, 'games'));
                 const batch = writeBatch(db);
                 snap.docs.forEach(d => batch.update(d.ref, { result: '***-**-***', openResult: '***', closeResult: '**' }));
-                await batch.commit();
+                await batch.commit().catch(e => {
+                  errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: 'games',
+                    operation: 'update'
+                  }));
+                });
             },
         }),
         {
@@ -186,7 +231,11 @@ export const useUserStore = create(
                     await setDoc(newUserRef, newUser);
                     return newUser;
                 } catch (error) {
-                    console.error("Signup error:", error);
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                      path: newUserRef.path,
+                      operation: 'create',
+                      requestResourceData: newUser
+                    }));
                     return null;
                 }
             },
@@ -226,10 +275,23 @@ export const useUserStore = create(
             setCurrentUser: (user) => set({ currentUser: user }),
             updateUser: async (updatedData) => {
                 const { id, ...userData } = updatedData;
-                updateDoc(doc(db, 'users', id), userData).catch(e => console.error("Update error:", e));
+                const ref = doc(db, 'users', id);
+                updateDoc(ref, userData).catch(e => {
+                  errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: ref.path,
+                    operation: 'update',
+                    requestResourceData: userData
+                  }));
+                });
             },
             deleteUser: async (userId) => {
-                 deleteDoc(doc(db, 'users', userId)).catch(e => console.error("Delete error:", e));
+                const ref = doc(db, 'users', userId);
+                deleteDoc(ref).catch(e => {
+                  errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: ref.path,
+                    operation: 'delete'
+                  }));
+                });
             },
             toggleUserAdminStatus: async (userId: string) => {
                 const user = get().findUserById(userId);
@@ -246,14 +308,28 @@ export const useUserStore = create(
                 const user = get().findUserByMobile(mobile);
                 if (!user) return false;
                 const bal = Number(user.balance || 0);
-                updateDoc(doc(db, 'users', user.id), { balance: increment(amount) }).catch(() => {});
+                const ref = doc(db, 'users', user.id);
+                updateDoc(ref, { balance: increment(amount) }).catch(e => {
+                  errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: ref.path,
+                    operation: 'update',
+                    requestResourceData: { balance: increment(amount) }
+                  }));
+                });
                 logTransaction({ userId: user.id, userName: user.name, amount: Math.abs(amount), type: amount < 0 ? 'withdrawal' : 'deposit', status: 'approved', description: 'Admin adjustment', balanceBefore: bal, balanceAfter: bal + amount });
                 return true;
             },
             addBonus: async (userId, amount) => {
                 const user = get().findUserById(userId);
                 if (!user) return false;
-                updateDoc(doc(db, 'users', userId), { bonusBalance: increment(amount), totalBonusGiven: increment(amount > 0 ? amount : 0) }).catch(() => {});
+                const ref = doc(db, 'users', userId);
+                updateDoc(ref, { bonusBalance: increment(amount), totalBonusGiven: increment(amount > 0 ? amount : 0) }).catch(e => {
+                  errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: ref.path,
+                    operation: 'update',
+                    requestResourceData: { bonusBalance: increment(amount) }
+                  }));
+                });
                 return true;
             },
             deductBonus: async (userId, amount) => get().addBonus(userId, -Math.abs(amount)),
@@ -262,11 +338,25 @@ export const useUserStore = create(
                 return user ? get().addFunds(user.mobile, -Math.abs(amount)) : false;
             },
             setBalanceToZero: async (userId) => {
-                updateDoc(doc(db, 'users', userId), { balance: 0 }).catch(() => {});
+                const ref = doc(db, 'users', userId);
+                updateDoc(ref, { balance: 0 }).catch(e => {
+                   errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: ref.path,
+                    operation: 'update',
+                    requestResourceData: { balance: 0 }
+                  }));
+                });
                 return true;
             },
             setBonusToZero: async (userId) => {
-                updateDoc(doc(db, 'users', userId), { bonusBalance: 0 }).catch(() => {});
+                const ref = doc(db, 'users', userId);
+                updateDoc(ref, { bonusBalance: 0 }).catch(e => {
+                   errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: ref.path,
+                    operation: 'update',
+                    requestResourceData: { bonusBalance: 0 }
+                  }));
+                });
                 return true;
             },
             initializeUserSubscription: () => {
@@ -281,7 +371,10 @@ export const useUserStore = create(
                         if (fresh) set({ currentUser: fresh });
                     }
                 }, (err) => {
-                    console.log("Users subscription waiting...");
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                      path: 'users',
+                      operation: 'list'
+                    }));
                 });
                 return () => { unsubscribe(); isUserSubscribed = false; };
             },
@@ -328,7 +421,10 @@ export const useSettingsStore = create(
                 const unsubscribe = onSnapshot(doc(db, 'settings', 'app-settings'), (snap) => {
                     if (snap.exists()) set({ appSettings: { ...defaultAppSettings, ...snap.data() } as AppSettings });
                 }, (err) => {
-                    console.log("Settings subscription waiting...");
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                      path: 'settings/app-settings',
+                      operation: 'get'
+                    }));
                 });
                 return () => { unsubscribe(); isSettingsSubscribed = false; };
             },

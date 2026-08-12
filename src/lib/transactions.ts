@@ -1,4 +1,3 @@
-
 import { collection, addDoc, serverTimestamp, Transaction as FirestoreTransaction, doc } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Transaction } from './types';
