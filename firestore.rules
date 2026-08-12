@@ -5,63 +5,36 @@ service cloud.firestore {
 
     /**
      * PROTOTYPE SECURITY RULES
-     * Note: These rules are permissive for rapid prototyping and debugging.
-     * In a production app, you would restrict access based on request.auth.uid.
+     * Note: These rules are intentionally permissive for rapid prototyping and debugging.
+     * They allow any user (even unauthenticated) to read and write all data.
      */
 
-    // Helper to check if user is signed in
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Main Markets, Starline, and Jackpot are publicly readable
-    match /games/{gameId} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    match /starlineGames/{gameId} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    match /jackpotGames/{gameId} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    // Public Settings and Notifications
-    match /settings/{settingId} {
-      allow read: if true;
-      allow write: if true;
-    }
-    
-    match /notifications/{notificationId} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    match /panelCharts/{chartId} {
-      allow read: if true;
-      allow write: if true;
-    }
-    
-    match /jodiCharts/{chartId} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    // User Data - Allow public create for signup, and owner/admin for others
-    match /users/{userId} {
+    match /{document=**} {
       allow read, write: if true;
     }
     
-    match /users {
-      allow list: if true;
+    // Explicitly mentioning common collections to ensure deployment triggers
+    match /games/{gameId} {
+      allow read, write: if true;
+    }
+    
+    match /starlineGames/{gameId} {
+      allow read, write: if true;
+    }
+    
+    match /jackpotGames/{gameId} {
+      allow read, write: if true;
     }
 
-    // Transactions and Bids
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
     match /bids/{bidId} {
+      allow read, write: if true;
+    }
+
+    match /transactions/{transactionId} {
       allow read, write: if true;
     }
 
@@ -73,26 +46,7 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    match /transactions/{transactionId} {
-      allow read, write: if true;
-    }
-
-    match /app-stats/{statId} {
-      allow read: if true;
-      allow write: if true;
-    }
-    
-    match /adminRoles/{adminId} {
-      allow read: if true;
-      allow write: if true;
-    }
-    
-    match /fcmTokens/{tokenId} {
-      allow read, write: if true;
-    }
-
-    // Global fallback for any other collection
-    match /{document=**} {
+    match /settings/{settingId} {
       allow read, write: if true;
     }
   }

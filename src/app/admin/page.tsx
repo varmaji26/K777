@@ -61,17 +61,12 @@ interface MonthlyStats {
     monthlyNetBalance: number;
 }
 
-/**
- * Robust helper to sum approved transaction amounts from a snapshot.
- * Excludes manual entries by checking paymentMethod and withdrawalMethod.
- */
 const sumApprovedAmount = (snapshot: any): number => {
     let total = 0;
     if (!snapshot || !snapshot.docs) return 0;
     
     snapshot.docs.forEach((doc: any) => {
         const data = doc.data();
-        // Check status and ensure it's NOT a manual entry (either deposit or withdrawal)
         if (data.status === 'approved' && 
             data.paymentMethod !== 'Manual (Admin)' && 
             data.withdrawalMethod !== 'Manual (Admin)') {
@@ -128,18 +123,26 @@ export default function AdminDashboardPage() {
 
         const unsubTodayDeposits = onSnapshot(todayDepositsQuery, (snap) => {
             setDailyStats(s => ({ ...s, todaysDeposits: sumApprovedAmount(snap) }));
+        }, (err) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'deposits', operation: 'list' }));
         });
 
         const unsubTodayWithdrawals = onSnapshot(todayWithdrawalsQuery, (snap) => {
             setDailyStats(s => ({ ...s, todaysWithdrawals: sumApprovedAmount(snap) }));
+        }, (err) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'withdrawals', operation: 'list' }));
         });
 
         const unsubYesterdayDeposits = onSnapshot(yesterdayDepositsQuery, (snap) => {
             setDailyStats(s => ({ ...s, yesterdaysDeposits: sumApprovedAmount(snap) }));
+        }, (err) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'deposits', operation: 'list' }));
         });
 
         const unsubYesterdayWithdrawals = onSnapshot(yesterdayWithdrawalsQuery, (snap) => {
             setDailyStats(s => ({ ...s, yesterdaysWithdrawals: sumApprovedAmount(snap) }));
+        }, (err) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'withdrawals', operation: 'list' }));
         });
 
         const unsubBids = onSnapshot(bidsQuery, (bidsSnap) => {
@@ -198,6 +201,8 @@ export default function AdminDashboardPage() {
                 const net = totalDeposit - (s.totalWithdrawal || 0);
                 return { ...s, totalDeposit, monthlyNetBalance: net };
             });
+        }, (err) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'deposits', operation: 'list' }));
         });
 
         const unsubWithdrawals = onSnapshot(withdrawalsQuery, (snap) => {
@@ -206,6 +211,8 @@ export default function AdminDashboardPage() {
                 const net = (s.totalDeposit || 0) - totalWithdrawal;
                 return { ...s, totalWithdrawal, monthlyNetBalance: net };
             });
+        }, (err) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'withdrawals', operation: 'list' }));
         });
 
         const unsubBids = onSnapshot(bidsQuery, (bidsSnap) => {
@@ -228,7 +235,9 @@ export default function AdminDashboardPage() {
                 totalBidding: monthBidding,
                 totalProfit: monthBidding - monthWinning,
             }));
-        }, (error) => {});
+        }, (error) => {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'bids', operation: 'list' }));
+        });
 
         return () => {
             unsubDeposits();
