@@ -8,24 +8,27 @@ service cloud.firestore {
      * Note: These rules are intentionally permissive for rapid prototyping and debugging.
      * They allow any user (even unauthenticated) to read and write all data.
      * Touching this file triggers a rule re-deployment.
-     * Updated at: 2026-08-12T21:45:00Z
+     * Updated at: 2026-08-12T21:48:00Z
      */
 
     match /{document=**} {
       allow read, write: if true;
     }
     
-    // Explicitly mentioning common collections to ensure deployment triggers and broad access
+    // Explicitly allowing public read for games to prevent errors during early hydration
     match /games/{gameId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if true;
     }
     
     match /starlineGames/{gameId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if true;
     }
     
     match /jackpotGames/{gameId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if true;
     }
 
     match /users/{userId} {
@@ -49,11 +52,13 @@ service cloud.firestore {
     }
 
     match /settings/{settingId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if true;
     }
 
     match /notifications/{notifId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if true;
     }
     
     match /app-stats/{statId} {
