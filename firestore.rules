@@ -7,6 +7,7 @@ service cloud.firestore {
      * PROTOTYPE SECURITY RULES
      * Note: These rules are intentionally permissive for rapid prototyping and debugging.
      * They allow any user (even unauthenticated) to read and write all data.
+     * Touching this file triggers a rule re-deployment.
      */
 
     match /{document=**} {

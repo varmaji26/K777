@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { doc, onSnapshot, DocumentData, collection, query, where, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Gamepad2, ArrowUpCircle, ArrowDownCircle, TrendingUp, TrendingDown, Scale, Landmark, BarChart } from 'lucide-react';
 import { Loader } from '@/components/loader';
@@ -94,7 +94,9 @@ export default function AdminDashboardPage() {
     const totalGames = useMemo(() => games.length, [games]);
 
     useEffect(() => {
-        if (!user?.isAdmin) return;
+        // CRITICAL FIX: Ensure actual Firebase Auth user is loaded before starting listeners
+        // This prevents the "permission-denied" error during page refresh/initial load
+        if (!user?.isAdmin || !auth.currentUser) return;
 
         const statsDocRef = doc(db, "app-stats", "dashboard");
         const unsubscribeStats = onSnapshot(statsDocRef, (docSnap) => {
@@ -183,7 +185,8 @@ export default function AdminDashboardPage() {
     }, [user]);
 
     useEffect(() => {
-        if (!user?.isAdmin) return;
+        // Wait for actual auth to be ready
+        if (!user?.isAdmin || !auth.currentUser) return;
 
         const year = new Date().getFullYear();
         const month = new Date().getMonth();
