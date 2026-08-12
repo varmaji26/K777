@@ -1,3 +1,4 @@
+
 'use client';
 import { Button } from '@/components/ui/button';
 import { Bell, ChevronRight, Gamepad2, LogOut, Settings, User, Home, Eye, Users, PlusSquare, Image as ImageIcon, MessageSquare, Send, CheckCircle, XCircle, BarChart2, LineChart, History, Award, Gift, FileText, FileSpreadsheet, Lock, Shield, Settings2, BarChart, FileDigit, PanelTop, Menu, ChevronDown, ArrowUp, ArrowDown, Share2, Star, Trophy, Search } from 'lucide-react';
@@ -11,6 +12,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Sheet, SheetTrigger, SheetContent, SheetClose, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { collection, onSnapshot, query, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 function getInitials(name: string) {
@@ -54,10 +57,20 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
 
     useEffect(() => {
         const qWithdrawals = query(collection(db, "withdrawals"), where("status", "==", "pending"));
-        const unsubWithdrawals = onSnapshot(qWithdrawals, (snapshot) => setPendingWithdrawals(snapshot.size));
+        const unsubWithdrawals = onSnapshot(qWithdrawals, (snapshot) => setPendingWithdrawals(snapshot.size), (err) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'withdrawals',
+                operation: 'list'
+            }));
+        });
 
         const qDeposits = query(collection(db, "deposits"), where("status", "==", "pending"));
-        const unsubDeposits = onSnapshot(qDeposits, (snapshot) => setPendingDeposits(snapshot.size));
+        const unsubDeposits = onSnapshot(qDeposits, (snapshot) => setPendingDeposits(snapshot.size), (err) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'deposits',
+                operation: 'list'
+            }));
+        });
         
         const lastViewedBidsTimestamp = parseInt(localStorage.getItem('lastViewedBidsTimestamp') || '0', 10);
         const bidsQuery = query(collection(db, "bids"), where("createdAt", ">", Timestamp.fromMillis(lastViewedBidsTimestamp)));
@@ -70,6 +83,11 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
                 return data.status === 'won' && createdAtMillis > lastViewedWinsTimestamp;
             });
             setNewWinsCount(newWins.length);
+        }, (err) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'bids',
+                operation: 'list'
+            }));
         });
 
         const lastViewedUsersTimestamp = parseInt(localStorage.getItem('lastViewedUsersTimestamp') || '0', 10);
@@ -81,6 +99,11 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
                 return new Date(data.joinedAt).getTime() > lastViewedUsersTimestamp;
             }).length;
             setNewUsersCount(count);
+        }, (err) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: 'users',
+                operation: 'list'
+            }));
         });
 
         return () => {
