@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Sheet, SheetTrigger, SheetContent, SheetClose, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { collection, onSnapshot, query, where, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -56,8 +56,9 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
     const [newUsersCount, setNewUsersCount] = useState(0);
 
     useEffect(() => {
-        // Guard: Only fetch counts if we have an admin user
-        if (!currentUser?.isAdmin) return;
+        // Guard: Only fetch counts if we have an admin user and Firebase Auth is ready
+        // This prevents permission errors during early hydration
+        if (!currentUser?.isAdmin || !auth.currentUser) return;
 
         const qWithdrawals = query(collection(db, "withdrawals"), where("status", "==", "pending"));
         const unsubWithdrawals = onSnapshot(qWithdrawals, (snapshot) => setPendingWithdrawals(snapshot.size), (err) => {
