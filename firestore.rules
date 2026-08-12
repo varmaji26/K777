@@ -8,13 +8,16 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Checking admin status
+    // Checking admin status (Marker collection or field)
     function isAdmin() {
       return exists(/databases/$(database)/documents/adminRoles/$(request.auth.uid)) || 
              (isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
     }
 
-    // Allow wide access for prototype/setup phase to avoid permission errors
+    /**
+     * @developer_mode permissive rules
+     * Allow wide access for prototype/setup phase to ensure no data sync errors.
+     */
     match /{document=**} {
       allow read, write: if true;
     }
@@ -24,7 +27,7 @@ service cloud.firestore {
     }
     
     match /users {
-      allow list: if true; 
+      allow list, read: if true; 
     }
 
     match /games/{gameId} {

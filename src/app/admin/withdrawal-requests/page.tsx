@@ -15,6 +15,8 @@ import { CircleDollarSign, Trash2, TrendingUp } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { logTransaction } from '@/lib/transactions';
 import type { User } from '@/lib/types';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 interface Request extends DocumentData {
@@ -55,13 +57,16 @@ export default function WithdrawalRequestsPage() {
       const unsubscribe = onSnapshot(q, async (snapshot) => {
           const data = snapshot.docs
             .map(d => ({ id: d.id, ...d.data() } as Request))
-            .filter(r => r.withdrawalMethod !== 'Manual (Admin)'); // Filter out manual admin deductions
+            .filter(r => r.withdrawalMethod !== 'Manual (Admin)');
 
           data.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
           setRequests(data);
           setLoading(false);
       }, (error) => {
-          console.error(`Error fetching pending withdrawals: `, error);
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: 'withdrawals',
+              operation: 'list'
+          }));
           setLoading(false);
       });
       return unsubscribe;
@@ -83,7 +88,6 @@ export default function WithdrawalRequestsPage() {
         let total = 0;
         snapshot.forEach(doc => {
             const data = doc.data();
-            // Filter: only approved AND NOT manual admin deductions
             if(data.status === 'approved' && data.withdrawalMethod !== 'Manual (Admin)') {
                 const amt = Number(data.amount || 0);
                 if (!isNaN(amt)) {
@@ -92,6 +96,11 @@ export default function WithdrawalRequestsPage() {
             }
         });
         setTodaysApprovedAmount(total);
+    }, (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: 'withdrawals',
+            operation: 'list'
+        }));
     });
 
     return () => {
@@ -119,7 +128,6 @@ export default function WithdrawalRequestsPage() {
         const userDoc = await transaction.get(userDocRef);
         const reqData = requestDoc.data() as Request;
 
-        // Find the existing withdrawal log to update it instead of creating a new one
         const transQuery = query(
             collection(db, 'transactions'), 
             where('relatedId', '==', request.id),
@@ -136,15 +144,12 @@ export default function WithdrawalRequestsPage() {
                 const balanceAfter = balanceBefore + Number(request.amount);
                 const bonusToRestore = reqData.bonusResetAmount || 0;
 
-                // Refund real balance
                 transaction.update(userDocRef, { balance: increment(Number(request.amount)) });
                 
-                // Restore bonus balance if it was reset
                 if (bonusToRestore > 0) {
                     transaction.update(userDocRef, { bonusBalance: increment(bonusToRestore) });
                 }
 
-                // Update the original log to rejected
                 if (existingTransDoc) {
                     transaction.update(existingTransDoc.ref, { 
                         status: 'rejected', 
@@ -164,7 +169,6 @@ export default function WithdrawalRequestsPage() {
                 }, transaction);
 
             } else if (status === 'approved') {
-                // If approved, just update the original log status
                 if (existingTransDoc) {
                     transaction.update(existingTransDoc.ref, { 
                         status: 'approved',
@@ -178,7 +182,11 @@ export default function WithdrawalRequestsPage() {
     }).then(() => {
         toast({ title: 'Success!', description: `Withdrawal request has been ${status}.` });
     }).catch((error: any) => {
-        toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to process withdrawal.' });
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: requestDocRef.path,
+            operation: 'update',
+            requestResourceData: { status }
+        }));
     }).finally(() => {
         setProcessingStatus(prev => {
             const newState = {...prev};
@@ -222,12 +230,10 @@ export default function WithdrawalRequestsPage() {
             description: `All pending withdrawals have been rejected and refunded.`
         });
     } catch (error) {
-        console.error(`Error rejecting all withdrawals:`, error);
-        toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: `Failed to reject all pending withdrawals.`
-        });
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: 'withdrawals',
+            operation: 'update'
+        }));
     } finally {
         setIsRejectingAll(false);
     }

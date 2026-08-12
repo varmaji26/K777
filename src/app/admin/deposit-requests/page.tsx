@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -13,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Trash2, TrendingUp } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { logTransaction } from '@/lib/transactions';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 interface Request extends DocumentData {
@@ -53,7 +56,7 @@ export default function DepositRequestsPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const allDeposits = snapshot.docs
             .map(d => ({ id: d.id, ...d.data() } as Request))
-            .filter(r => r.paymentMethod !== 'Manual (Admin)'); // Filter out manual admin entries
+            .filter(r => r.paymentMethod !== 'Manual (Admin)');
         
         const pendingRequests = allDeposits.filter(r => r.status === 'pending');
         setRequests(pendingRequests);
@@ -73,7 +76,10 @@ export default function DepositRequestsPage() {
 
         setLoading(false);
     }, (error) => {
-        console.error(`Error fetching deposits: `, error);
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: 'deposits',
+            operation: 'list'
+        }));
         setLoading(false);
     });
 
@@ -102,7 +108,6 @@ export default function DepositRequestsPage() {
         
         const userDoc = await transaction.get(userDocRef);
         
-        // Find the original transaction to update its status or delete it
         const transQuery = query(collection(db, 'transactions'), where('relatedId', '==', request.id));
         const transSnapshot = await getDocs(transQuery);
         const transDoc = transSnapshot.docs.length > 0 ? transSnapshot.docs[0] : null;
@@ -118,12 +123,9 @@ export default function DepositRequestsPage() {
               
               let bonusAmount = 0;
 
-              // Check if user has specific "Auto Deposit Bonus" enabled
               if (userData.depositBonusEnabled === true && userData.depositBonusPercentage > 0) {
                   bonusAmount = (Number(request.amount) * Number(userData.depositBonusPercentage)) / 100;
-                  console.log(`Applying user-specific deposit bonus: ${userData.depositBonusPercentage}% = ₹${bonusAmount}`);
               } 
-              // Otherwise fallback to global settings
               else {
                   const bonusSettings = settings?.bonus || { enabled: false, percentage: 0 };
                   if (bonusSettings.enabled && bonusSettings.percentage > 0) {
@@ -149,7 +151,6 @@ export default function DepositRequestsPage() {
                 });
               }
               
-              // Referral bonus logic
               const referralSettings = settings?.referralBonus || { enabled: false, referrerAmount: 0, refereeAmount: 0 };
               if (referralSettings.enabled && !userData.hasDeposited && userData.referredBy) {
                   const referrerDocRef = doc(db, 'users', userData.referredBy);
@@ -176,26 +177,26 @@ export default function DepositRequestsPage() {
                               amount: referralSettings.refereeAmount,
                               type: 'bonus',
                               description: 'Bonus for being referred',
-                              balanceBefore: balanceAfter, // use the already updated balance
+                              balanceBefore: balanceAfter,
                               balanceAfter: balanceAfter,
                           }, transaction);
                       }
                   }
               }
             } else if (status === 'rejected' && transDoc) {
-                // User Requirement: Hide from user app passbook if rejected.
-                // We delete the transaction log record so the user never sees it as 'Rejected'.
                 transaction.delete(transDoc.ref);
             }
-        } else if (status === 'approved') {
-           console.log(`User ${request.userId} not found in Firestore. Approving request without balance change.`);
         }
         
         transaction.update(requestDocRef, { status: status });
       }).then(() => {
         toast({ title: 'Success!', description: `Request has been ${status}.` });
       }).catch((error: any) => {
-        toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to update request.' });
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: requestDocRef.path,
+            operation: 'update',
+            requestResourceData: { status }
+        }));
       }).finally(() => {
         setProcessingStatus(prev => {
             const newState = {...prev};
@@ -221,7 +222,6 @@ export default function DepositRequestsPage() {
             const docRef = doc(db, 'deposits', request.id);
             batch.update(docRef, { status: 'rejected' });
             
-            // Find and delete the corresponding transaction log so it disappears from user's view
             const transQuery = query(transactionsRef, where('relatedId', '==', request.id), where('status', '==', 'pending'));
             const transSnapshot = await getDocs(transQuery);
             transSnapshot.forEach(tDoc => {
@@ -234,12 +234,10 @@ export default function DepositRequestsPage() {
             description: `All pending deposit requests have been rejected and hidden from user passbooks.`
         });
     } catch (error) {
-        console.error(`Error rejecting all deposits:`, error);
-        toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: `Failed to reject all pending deposits.`
-        });
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: 'deposits',
+            operation: 'update'
+        }));
     } finally {
         setIsRejectingAll(false);
     }
