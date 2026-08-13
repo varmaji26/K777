@@ -33,7 +33,8 @@
         "result": { "type": "string" },
         "openResult": { "type": "string" },
         "closeResult": { "type": "string" },
-        "status": { "type": "string" }
+        "status": { "type": "string" },
+        "activeDays": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["id", "name", "openTime", "closeTime"]
     },
@@ -71,10 +72,12 @@
         "gameId": { "type": "string" },
         "gameName": { "type": "string" },
         "betType": { "type": "string" },
+        "session": { "type": "string" },
         "numbers": { "type": "array", "items": { "type": "string" } },
         "totalAmount": { "type": "number" },
         "status": { "type": "string", "enum": ["running", "won", "lost", "cancelled"] },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "betSource": { "type": "string" }
       }
     },
     "Transaction": {
@@ -83,10 +86,13 @@
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
+        "userName": { "type": "string" },
         "amount": { "type": "number" },
         "type": { "type": "string" },
         "description": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "balanceBefore": { "type": "number" },
+        "balanceAfter": { "type": "number" }
       }
     }
   },
@@ -121,6 +127,18 @@
     "/settings/app-settings": {
       "schema": { "type": "object" },
       "description": "Global application configuration"
+    },
+    "/notifications/{notifId}": {
+      "schema": { "type": "object" },
+      "description": "Broadcast notifications"
+    },
+    "/deposits/{depositId}": {
+      "schema": { "type": "object" },
+      "description": "Deposit requests"
+    },
+    "/withdrawals/{withdrawalId}": {
+      "schema": { "type": "object" },
+      "description": "Withdrawal requests"
     }
   }
 }
