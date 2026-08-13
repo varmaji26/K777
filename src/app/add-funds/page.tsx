@@ -1,11 +1,11 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useUserStore, useSettingsStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CreditCard, AlertCircle, CheckCircle2, QrCode, Copy } from 'lucide-react';
+import { CreditCard, AlertCircle, CheckCircle2, QrCode, Copy, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Loader } from '@/components/loader';
@@ -13,6 +13,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import Image from 'next/image';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const CustomWalletIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 512 512" className={className} xmlns="http://www.w3.org/2000/svg">
@@ -51,6 +52,7 @@ export default function AddFundsPage() {
   const { appSettings } = useSettingsStore();
   const [isAddingFunds, setIsAddingFunds] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [isImageLoading, setIsImageLoading] = useState(true);
 
   const presetAmounts = [200, 300, 500, 1000, 1500, 2000, 2500];
 
@@ -67,7 +69,7 @@ export default function AddFundsPage() {
       return;
     }
 
-    // Always allow opening the QR modal, providing a fallback UPI ID if none set
+    setIsImageLoading(true);
     setIsQrModalOpen(true);
   };
 
@@ -75,7 +77,6 @@ export default function AddFundsPage() {
     setIsAddingFunds(true);
 
     try {
-      // Create a deposit request in Firestore
       await addDoc(collection(db, 'deposits'), {
         userId: currentUser?.id,
         displayName: currentUser?.name || 'User',
@@ -84,7 +85,7 @@ export default function AddFundsPage() {
         status: 'pending',
         createdAt: serverTimestamp(),
         paymentMethod: 'UPI Instant (QR)',
-        transactionId: `TXN${Date.now().toString().slice(-6)}`, // Auto-generated ID
+        transactionId: `TXN${Date.now().toString().slice(-6)}`,
       });
 
       toast({
@@ -107,10 +108,12 @@ export default function AddFundsPage() {
     }
   };
 
-  // Fallback UPI ID for the prototype
   const effectiveUpiId = appSettings.upiId || 'paytmqr281005051011j86r9p876v01@paytm';
-  const upiUri = `upi://pay?pa=${effectiveUpiId}&pn=${encodeURIComponent(appSettings.appName || 'Matka App')}&am=${amount}&cu=INR`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiUri)}`;
+  
+  const qrUrl = useMemo(() => {
+    const upiUri = `upi://pay?pa=${effectiveUpiId}&pn=${encodeURIComponent(appSettings.appName || 'Matka App')}&am=${amount}&cu=INR`;
+    return `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiUri)}`;
+  }, [effectiveUpiId, appSettings.appName, amount]);
 
   const handleCopyUpi = () => {
     if (effectiveUpiId) {
@@ -205,18 +208,27 @@ export default function AddFundsPage() {
             </div>
             
             <div className="p-6 flex flex-col items-center gap-6">
-                <div className="relative bg-white p-3 rounded-2xl shadow-xl border-2 border-dashed border-gray-200">
+                <div className="relative bg-white p-3 rounded-2xl shadow-xl border-2 border-dashed border-gray-200 min-h-[224px] min-w-[224px] flex items-center justify-center">
+                    {isImageLoading && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-2xl z-10">
+                            <RefreshCw className="h-8 w-8 text-primary animate-spin mb-2" />
+                            <p className="text-[10px] font-bold text-gray-400 uppercase">Generating QR Code...</p>
+                        </div>
+                    )}
                     <Image 
                         src={qrUrl} 
                         alt="UPI QR Code" 
                         width={200} 
                         height={200} 
-                        className="rounded-lg"
+                        className={cn("rounded-lg transition-opacity duration-300", isImageLoading ? "opacity-0" : "opacity-100")}
                         priority
+                        onLoad={() => setIsImageLoading(false)}
                     />
-                    <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
-                        <QrCode className="w-24 h-24 text-primary" />
-                    </div>
+                    {!isImageLoading && (
+                        <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none">
+                            <QrCode className="w-24 h-24 text-primary" />
+                        </div>
+                    )}
                 </div>
 
                 <div className="w-full space-y-4">
