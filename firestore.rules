@@ -5,7 +5,7 @@ service cloud.firestore {
 
     /**
      * KALYAN 777 SECURITY RULES
-     * Updated at: 2025-05-15T11:45:00Z (Force redeploy to fix permission errors)
+     * Updated at: 2025-05-15T12:05:00Z (Force redeploy to fix permission errors)
      * 
      * Core Philosophy:
      * - Public data (Games, Settings, Charts, Notifications) is readable by everyone.
@@ -52,12 +52,6 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
-    // Explicitly allow sub-paths in settings if needed (e.g. /settings/app-settings)
-    match /settings/app-settings {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
     match /notifications/{notifId} {
       allow read: if true;
       allow write: if isAdmin();
