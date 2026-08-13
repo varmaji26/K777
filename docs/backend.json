@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "UserProfile": {
@@ -141,26 +140,6 @@
     "/settings/gameRates": {
       "schema": { "type": "object" },
       "description": "Winning rate configuration"
-    },
-    "/notifications/{notifId}": {
-      "schema": { "type": "object" },
-      "description": "Broadcast notifications"
-    },
-    "/deposits/{depositId}": {
-      "schema": { "type": "object" },
-      "description": "Deposit requests"
-    },
-    "/withdrawals/{withdrawalId}": {
-      "schema": { "type": "object" },
-      "description": "Withdrawal requests"
-    },
-    "/panelCharts/{gameId}": {
-      "schema": { "type": "object" },
-      "description": "Panel charts for games"
-    },
-    "/jodiCharts/{gameId}": {
-      "schema": { "type": "object" },
-      "description": "Jodi charts for games"
     }
   }
 }

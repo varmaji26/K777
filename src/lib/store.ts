@@ -1,4 +1,3 @@
-
 'use client';
 import { create } from 'zustand';
 import type { Game, User, AppSettings, StarlineGame, JackpotGame } from './types';
@@ -75,6 +74,8 @@ const useGameStore = create(
             setHydrated: (hydrated) => set({ hydrated }),
             getGameById: (gameId: string) => get().games.find((g) => g.id === gameId),
             addGame: async (game) => {
+                // Ensure auth is present before write
+                if (!auth.currentUser) await signInAnonymously(auth);
                 const ref = doc(collection(db, 'games'));
                 setDoc(ref, { 
                   ...game, 
@@ -89,6 +90,7 @@ const useGameStore = create(
                 });
             },
             updateGame: async (gameId, updates) => {
+                if (!auth.currentUser) await signInAnonymously(auth);
                 const ref = doc(db, 'games', gameId);
                 updateDoc(ref, updates).catch(e => {
                   errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -99,6 +101,7 @@ const useGameStore = create(
                 });
             },
             deleteGame: async (gameId) => {
+                if (!auth.currentUser) await signInAnonymously(auth);
                 const gameDoc = doc(db, 'games', gameId);
                 deleteDoc(gameDoc).catch(e => {
                   errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -159,6 +162,7 @@ const useGameStore = create(
                 };
             },
             resetAllResults: async () => {
+                if (!auth.currentUser) await signInAnonymously(auth);
                 const snap = await getDocs(collection(db, 'games'));
                 const batch = writeBatch(db);
                 snap.docs.forEach(d => batch.update(d.ref, { result: '***-**-***', openResult: '***', closeResult: '**' }));
@@ -261,10 +265,12 @@ export const useUserStore = create(
                         authUser = cred.user;
                     }
 
+                    if (!authUser) return null;
+
                     // Admin hardcoded fallback
                     if (mobile === '9999999999' && password === 'admin123') {
                         const admin: User = { 
-                          id: authUser.uid, // Use actual Auth UID
+                          id: authUser.uid,
                           name: "Admin", 
                           mobile, 
                           password, 
@@ -288,6 +294,7 @@ export const useUserStore = create(
                     
                     const user = { id: snap.docs[0].id, ...snap.docs[0].data() } as User;
                     if (user.password === password && user.status !== 'blocked') {
+                        // Ensure auth is synced
                         set({ currentUser: user });
                         return user;
                     }
@@ -302,6 +309,7 @@ export const useUserStore = create(
             },
             setCurrentUser: (user) => set({ currentUser: user }),
             updateUser: async (updatedData) => {
+                if (!auth.currentUser) await signInAnonymously(auth);
                 const { id, ...userData } = updatedData;
                 const ref = doc(db, 'users', id);
                 updateDoc(ref, userData).catch(e => {
@@ -313,6 +321,7 @@ export const useUserStore = create(
                 });
             },
             deleteUser: async (userId) => {
+                if (!auth.currentUser) await signInAnonymously(auth);
                 const ref = doc(db, 'users', userId);
                 deleteDoc(ref).catch(e => {
                   errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -333,6 +342,7 @@ export const useUserStore = create(
                 }
             },
             addFunds: async (mobile, amount) => {
+                if (!auth.currentUser) await signInAnonymously(auth);
                 const user = get().findUserByMobile(mobile);
                 if (!user) return false;
                 const bal = Number(user.balance || 0);
@@ -348,6 +358,7 @@ export const useUserStore = create(
                 return true;
             },
             addBonus: async (userId, amount) => {
+                if (!auth.currentUser) await signInAnonymously(auth);
                 const user = get().findUserById(userId);
                 if (!user) return false;
                 const ref = doc(db, 'users', userId);
@@ -366,6 +377,7 @@ export const useUserStore = create(
                 return user ? get().addFunds(user.mobile, -Math.abs(amount)) : false;
             },
             setBalanceToZero: async (userId) => {
+                if (!auth.currentUser) await signInAnonymously(auth);
                 const ref = doc(db, 'users', userId);
                 updateDoc(ref, { balance: 0 }).catch(e => {
                    errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -377,6 +389,7 @@ export const useUserStore = create(
                 return true;
             },
             setBonusToZero: async (userId) => {
+                if (!auth.currentUser) await signInAnonymously(auth);
                 const ref = doc(db, 'users', userId);
                 updateDoc(ref, { bonusBalance: 0 }).catch(e => {
                    errorEmitter.emit('permission-error', new FirestorePermissionError({

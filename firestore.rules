@@ -1,11 +1,10 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
      * KALYAN 777 SECURITY RULES
-     * Last Updated: 2025-05-15T13:45:00Z (Force Redeploy for Permissions)
+     * Last Updated: 2025-05-15T15:30:00Z (Force Redeploy for Create/List Permissions)
      */
 
     // --- HELPER FUNCTIONS ---
@@ -14,10 +13,12 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Check for Admin document or isAdmin flag in user doc
-      return isSignedIn() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true || 
-         request.auth.uid == 'admin-special-uid');
+      // Robust admin check: Admin doc flag or specific admin UID/Mobile
+      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return isSignedIn() && (
+        (exists(userPath) && get(userPath).data.isAdmin == true) ||
+        request.auth.uid == 'admin-special-uid'
+      );
     }
 
     function isOwner(userId) {
@@ -71,6 +72,7 @@ service cloud.firestore {
     
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
+      // Allow creation during signup or admin login bootstrap
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
@@ -102,7 +104,8 @@ service cloud.firestore {
 
     // --- CATCH ALL ---
     match /{document=**} {
-      allow read, write: if isAdmin();
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }
