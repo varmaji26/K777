@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -13,13 +14,15 @@
         "balance": { "type": "number" },
         "bonusBalance": { "type": "number" },
         "status": { "type": "string", "enum": ["active", "blocked"] },
-        "joinedAt": { "type": "string", "format": "date-time" }
+        "joinedAt": { "type": "string", "format": "date-time" },
+        "depositBonusEnabled": { "type": "boolean" },
+        "depositBonusPercentage": { "type": "number" }
       },
       "required": ["id", "name", "mobile", "status"]
     },
     "Game": {
       "title": "Game",
-      "description": "A matka game market.",
+      "description": "A matka market game.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -27,9 +30,64 @@
         "openTime": { "type": "string" },
         "closeTime": { "type": "string" },
         "active": { "type": "boolean" },
-        "result": { "type": "string" }
+        "result": { "type": "string" },
+        "openResult": { "type": "string" },
+        "closeResult": { "type": "string" },
+        "status": { "type": "string" }
       },
       "required": ["id", "name", "openTime", "closeTime"]
+    },
+    "StarlineGame": {
+      "title": "StarlineGame",
+      "description": "Hourly starline market slot.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "time": { "type": "string" },
+        "panna": { "type": "string" },
+        "digit": { "type": "string" },
+        "status": { "type": "string", "enum": ["running", "closed"] },
+        "active": { "type": "boolean" }
+      }
+    },
+    "JackpotGame": {
+      "title": "JackpotGame",
+      "description": "Jackpot market slot.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "time": { "type": "string" },
+        "result": { "type": "string" },
+        "status": { "type": "string", "enum": ["running", "closed"] },
+        "active": { "type": "boolean" }
+      }
+    },
+    "Bid": {
+      "title": "Bid",
+      "description": "A bet placed by a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "gameId": { "type": "string" },
+        "gameName": { "type": "string" },
+        "betType": { "type": "string" },
+        "numbers": { "type": "array", "items": { "type": "string" } },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["running", "won", "lost", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A financial record.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "auth": {
@@ -43,6 +101,26 @@
     "/games/{gameId}": {
       "schema": { "$ref": "#/entities/Game" },
       "description": "Main market games"
+    },
+    "/starlineGames/{gameId}": {
+      "schema": { "$ref": "#/entities/StarlineGame" },
+      "description": "Starline market games"
+    },
+    "/jackpotGames/{gameId}": {
+      "schema": { "$ref": "#/entities/JackpotGame" },
+      "description": "Jackpot market games"
+    },
+    "/bids/{bidId}": {
+      "schema": { "$ref": "#/entities/Bid" },
+      "description": "User betting records"
+    },
+    "/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "Ledger entries"
+    },
+    "/settings/app-settings": {
+      "schema": { "type": "object" },
+      "description": "Global application configuration"
     }
   }
 }
