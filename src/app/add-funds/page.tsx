@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
+import { useRouter } from 'next/navigation';
 
 const CustomWalletIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 512 512" className={className} xmlns="http://www.w3.org/2000/svg">
@@ -56,6 +57,7 @@ export default function AddFundsPage() {
   const [isImageLoading, setIsImageLoading] = useState(true);
   const [pendingDeposit, setPendingDeposit] = useState<any>(null);
   const [isLoadingPending, setIsLoadingPending] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -221,7 +223,11 @@ export default function AddFundsPage() {
                 <p className="text-[9px] font-black text-blue-400 uppercase tracking-tighter italic">
                     Please wait until this request is approved or rejected before sending a new one.
                 </p>
-                <Button variant="outline" asChild className="h-8 rounded-lg text-[10px] uppercase font-bold border-blue-200 text-blue-600 bg-white hover:bg-blue-50">
+                <Button 
+                    variant="outline" 
+                    onClick={() => router.push('/passbook')} 
+                    className="h-8 rounded-lg text-[10px] uppercase font-bold border-blue-200 text-blue-600 bg-white hover:bg-blue-50"
+                >
                     <History className="mr-1 h-3 w-3" /> View History
                 </Button>
             </div>
