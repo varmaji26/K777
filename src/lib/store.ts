@@ -1,3 +1,4 @@
+
 'use client';
 import { create } from 'zustand';
 import type { Game, User, AppSettings, StarlineGame, JackpotGame } from './types';
@@ -407,7 +408,7 @@ interface SettingsState {
 
 const defaultAppSettings: AppSettings = {
     marqueeText: "", headerMarqueeSpeed: 15, headerMarqueeSize: 14, withdrawalMarqueeText: "", withdrawalMarqueeSpeed: 15, withdrawalMarqueeSize: 14,
-    minWithdrawal: 1000, maxWithdrawal: 50000, shareLink: '', minDeposit: 500, whatsappNumber: '', appName: '', upiId: '', supportNumber: '',
+    minWithdrawal: 1000, maxWithdrawal: 50000, shareLink: '', minDeposit: 500, whatsappNumber: '919999999999', appName: 'KALYAN 777', upiId: 'paytmqr281005051011j86r9p876v01@paytm', supportNumber: '919999999999',
     autoResetEnabled: false, autoResetTime: '12:00 AM', autoResultEnabled: false, marketOpenTime: '12:00 AM', withdrawalStartTime: '10:00 AM', withdrawalEndTime: '10:00 PM',
     minBidSingleDigit: 10, minBidJodiDigit: 10, minBidSinglePana: 10, minBidDoublePana: 10, minBidTriplePana: 10, minBidHalfSangam: 10, minBidFullSangam: 10,
     minBidSingleDigitBulk: 10, minBidSinglePanaBulk: 10, minBidDoublePanaBulk: 10, minBidSpDpTp: 10, minBidSpMotor: 10, minBidDpMotor: 10,

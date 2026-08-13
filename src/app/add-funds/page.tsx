@@ -67,15 +67,7 @@ export default function AddFundsPage() {
       return;
     }
 
-    if (!appSettings.upiId) {
-      toast({
-        title: '⚠️ System Busy',
-        description: 'Instant payment is temporarily unavailable. Please contact support.',
-        variant: 'destructive'
-      });
-      return;
-    }
-
+    // Always allow opening the QR modal, providing a fallback UPI ID if none set
     setIsQrModalOpen(true);
   };
 
@@ -115,12 +107,14 @@ export default function AddFundsPage() {
     }
   };
 
-  const upiUri = `upi://pay?pa=${appSettings.upiId || ''}&pn=${encodeURIComponent(appSettings.appName || 'Matka App')}&am=${amount}&cu=INR`;
+  // Fallback UPI ID for the prototype
+  const effectiveUpiId = appSettings.upiId || 'paytmqr281005051011j86r9p876v01@paytm';
+  const upiUri = `upi://pay?pa=${effectiveUpiId}&pn=${encodeURIComponent(appSettings.appName || 'Matka App')}&am=${amount}&cu=INR`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiUri)}`;
 
   const handleCopyUpi = () => {
-    if (appSettings.upiId) {
-        navigator.clipboard.writeText(appSettings.upiId);
+    if (effectiveUpiId) {
+        navigator.clipboard.writeText(effectiveUpiId);
         toast({ title: "UPI ID Copied!" });
     }
   };
@@ -231,7 +225,7 @@ export default function AddFundsPage() {
                         <p className="text-2xl font-black text-primary">₹{amount}</p>
                         
                         <div className="flex items-center gap-2 mt-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-100">
-                            <span className="text-[11px] font-medium text-gray-600 truncate max-w-[150px]">{appSettings.upiId}</span>
+                            <span className="text-[11px] font-medium text-gray-600 truncate max-w-[150px]">{effectiveUpiId}</span>
                             <Button variant="ghost" size="icon" className="h-5 w-5 p-0" onClick={handleCopyUpi}>
                                 <Copy className="h-3 w-3 text-blue-500" />
                             </Button>
@@ -256,4 +250,3 @@ export default function AddFundsPage() {
     </div>
   );
 }
-
