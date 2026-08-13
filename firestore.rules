@@ -3,95 +3,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * KALYAN 777 SECURITY RULES
-     * Updated: 2025-05-15T18:45:00Z (Fix for Admin Restricted Ops and Auth Null)
+     * KALYAN 777 GLOBAL ACCESSIBLE RULES
+     * Updated: 2025-05-16T10:00:00Z
+     * Note: Fully open for prototype stability to prevent 'Permission Denied' errors.
      */
 
-    // --- HELPER FUNCTIONS ---
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isAdmin() {
-      // Robust admin check: Admin doc flag or specific Mobile number
-      // We check for Mobile '9999999999' as the root admin identifier
-      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
-      return isSignedIn() && (
-        (exists(userPath) && get(userPath).data.isAdmin == true) ||
-        (exists(userPath) && get(userPath).data.mobile == '9999999999')
-      );
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // --- PUBLIC READ COLLECTIONS ---
-    // These are readable by everyone (even null auth) to allow the home page to load
-    
-    match /games/{gameId} {
-      allow read: if true;
-      allow write: if true; // Temporarily allow for bootstrapping, should be isAdmin()
-    }
-    
-    match /starlineGames/{gameId} {
-      allow read: if true;
-      allow write: if true;
-    }
-    
-    match /jackpotGames/{gameId} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    match /settings/{settingId} {
-      allow read: if true;
-      allow write: if true;
-    }
-    
-    match /notifications/{notifId} {
-      allow read: if true;
-      allow write: if true;
-    }
-    
-    match /panelCharts/{gameId} {
-      allow read: if true;
-      allow write: if true;
-    }
-    
-    match /jodiCharts/{gameId} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    match /app-stats/{statId} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    // --- PRIVATE USER COLLECTIONS ---
-    
-    match /users/{userId} {
-      allow read, write: if true; // Temporarily fully open to fix the Auth crash and bootstrap admin
-    }
-
-    match /bids/{bidId} {
-      allow read, write: if true;
-    }
-
-    match /transactions/{transactionId} {
-      allow read, write: if true;
-    }
-
-    match /deposits/{depositId} {
-      allow read, write: if true;
-    }
-
-    match /withdrawals/{withdrawalId} {
-      allow read, write: if true;
-    }
-
-    // --- CATCH ALL ---
     match /{document=**} {
       allow read, write: if true;
     }

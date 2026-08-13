@@ -1,4 +1,3 @@
-
 'use client';
 import { create } from 'zustand';
 import type { Game, User, AppSettings, StarlineGame, JackpotGame } from './types';
@@ -76,7 +75,7 @@ const useGameStore = create(
             getGameById: (gameId: string) => get().games.find((g) => g.id === gameId),
             addGame: async (game) => {
                 const ref = doc(collection(db, 'games'));
-                setDoc(ref, { 
+                await setDoc(ref, { 
                   ...game, 
                   id: ref.id,
                   createdAt: serverTimestamp() 
@@ -90,7 +89,7 @@ const useGameStore = create(
             },
             updateGame: async (gameId, updates) => {
                 const ref = doc(db, 'games', gameId);
-                updateDoc(ref, updates).catch(e => {
+                await updateDoc(ref, updates).catch(e => {
                   errorEmitter.emit('permission-error', new FirestorePermissionError({
                     path: ref.path,
                     operation: 'update',
@@ -100,7 +99,7 @@ const useGameStore = create(
             },
             deleteGame: async (gameId) => {
                 const gameDoc = doc(db, 'games', gameId);
-                deleteDoc(gameDoc).catch(e => {
+                await deleteDoc(gameDoc).catch(e => {
                   errorEmitter.emit('permission-error', new FirestorePermissionError({
                     path: gameDoc.path,
                     operation: 'delete'
@@ -112,9 +111,9 @@ const useGameStore = create(
                 isGameSubscribed = true;
 
                 const unsubGames = onSnapshot(collection(db, 'games'), (snap) => {
-                    const games = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Game));
-                    games.sort((a, b) => parseTime(a.openTime) - parseTime(b.openTime));
-                    set({ games });
+                    const gamesList = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Game));
+                    gamesList.sort((a, b) => parseTime(a.openTime) - parseTime(b.openTime));
+                    set({ games: gamesList });
                 }, (err) => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({
                       path: 'games',
@@ -123,9 +122,9 @@ const useGameStore = create(
                 });
 
                 const unsubStarline = onSnapshot(collection(db, 'starlineGames'), (snap) => {
-                    const games = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as StarlineGame));
-                    games.sort((a, b) => parseTime(a.time) - parseTime(b.time));
-                    set({ starlineGames: games });
+                    const gamesList = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as StarlineGame));
+                    gamesList.sort((a, b) => parseTime(a.time) - parseTime(b.time));
+                    set({ starlineGames: gamesList });
                 }, (err) => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({
                       path: 'starlineGames',
@@ -134,9 +133,9 @@ const useGameStore = create(
                 });
 
                 const unsubJackpot = onSnapshot(collection(db, 'jackpotGames'), (snap) => {
-                    const games = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as JackpotGame));
-                    games.sort((a, b) => parseTime(a.time) - parseTime(b.time));
-                    set({ jackpotGames: games });
+                    const gamesList = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as JackpotGame));
+                    gamesList.sort((a, b) => parseTime(a.time) - parseTime(b.time));
+                    set({ jackpotGames: gamesList });
                 }, (err) => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({
                       path: 'jackpotGames',
@@ -248,8 +247,8 @@ export const useUserStore = create(
                 try {
                     // Admin hardcoded fallback
                     if (mobile === '9999999999' && password === 'admin123') {
-                        const admin: User = { 
-                          id: "ADMIN_ROOT",
+                        const adminUser: User = { 
+                          id: "USER_9999999999",
                           name: "Admin", 
                           mobile, 
                           password, 
@@ -260,19 +259,19 @@ export const useUserStore = create(
                           joinedAt: new Date().toISOString() 
                         };
                         
-                        await setDoc(doc(db, 'users', admin.id), admin, { merge: true });
-                        set({ currentUser: admin });
-                        return admin;
+                        await setDoc(doc(db, 'users', adminUser.id), adminUser, { merge: true });
+                        set({ currentUser: adminUser });
+                        return adminUser;
                     }
 
                     const q = query(collection(db, "users"), where("mobile", "==", mobile));
                     const snap = await getDocs(q);
                     if (snap.empty) return null;
                     
-                    const user = { id: snap.docs[0].id, ...snap.docs[0].data() } as User;
-                    if (user.password === password && user.status !== 'blocked') {
-                        set({ currentUser: user });
-                        return user;
+                    const loggedUser = { id: snap.docs[0].id, ...snap.docs[0].data() } as User;
+                    if (loggedUser.password === password && loggedUser.status !== 'blocked') {
+                        set({ currentUser: loggedUser });
+                        return loggedUser;
                     }
                 } catch (e) { 
                   console.error("Login err:", e); 
@@ -287,7 +286,7 @@ export const useUserStore = create(
             updateUser: async (updatedData) => {
                 const { id, ...userData } = updatedData;
                 const ref = doc(db, 'users', id);
-                updateDoc(ref, userData).catch(e => {
+                await updateDoc(ref, userData).catch(e => {
                   errorEmitter.emit('permission-error', new FirestorePermissionError({
                     path: ref.path,
                     operation: 'update',
@@ -297,7 +296,7 @@ export const useUserStore = create(
             },
             deleteUser: async (userId) => {
                 const ref = doc(db, 'users', userId);
-                deleteDoc(ref).catch(e => {
+                await deleteDoc(ref).catch(e => {
                   errorEmitter.emit('permission-error', new FirestorePermissionError({
                     path: ref.path,
                     operation: 'delete'
@@ -320,7 +319,7 @@ export const useUserStore = create(
                 if (!user) return false;
                 const bal = Number(user.balance || 0);
                 const ref = doc(db, 'users', user.id);
-                updateDoc(ref, { balance: increment(amount) }).catch(e => {
+                await updateDoc(ref, { balance: increment(amount) }).catch(e => {
                   errorEmitter.emit('permission-error', new FirestorePermissionError({
                     path: ref.path,
                     operation: 'update',
@@ -334,7 +333,7 @@ export const useUserStore = create(
                 const user = get().findUserById(userId);
                 if (!user) return false;
                 const ref = doc(db, 'users', userId);
-                updateDoc(ref, { bonusBalance: increment(amount), totalBonusGiven: increment(amount > 0 ? amount : 0) }).catch(e => {
+                await updateDoc(ref, { bonusBalance: increment(amount), totalBonusGiven: increment(amount > 0 ? amount : 0) }).catch(e => {
                   errorEmitter.emit('permission-error', new FirestorePermissionError({
                     path: ref.path,
                     operation: 'update',
@@ -350,7 +349,7 @@ export const useUserStore = create(
             },
             setBalanceToZero: async (userId) => {
                 const ref = doc(db, 'users', userId);
-                updateDoc(ref, { balance: 0 }).catch(e => {
+                await updateDoc(ref, { balance: 0 }).catch(e => {
                    errorEmitter.emit('permission-error', new FirestorePermissionError({
                     path: ref.path,
                     operation: 'update',
@@ -361,7 +360,7 @@ export const useUserStore = create(
             },
             setBonusToZero: async (userId) => {
                 const ref = doc(db, 'users', userId);
-                updateDoc(ref, { bonusBalance: 0 }).catch(e => {
+                await updateDoc(ref, { bonusBalance: 0 }).catch(e => {
                    errorEmitter.emit('permission-error', new FirestorePermissionError({
                     path: ref.path,
                     operation: 'update',
@@ -374,11 +373,11 @@ export const useUserStore = create(
                 if (isUserSubscribed) return () => {};
                 isUserSubscribed = true;
                 const unsubscribe = onSnapshot(collection(db, 'users'), (snap) => {
-                    const users = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
-                    set({ users });
+                    const usersList = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+                    set({ users: usersList });
                     const currentId = get().currentUser?.id;
                     if (currentId) {
-                        const fresh = users.find(u => u.id === currentId);
+                        const fresh = usersList.find(u => u.id === currentId);
                         if (fresh) set({ currentUser: fresh });
                     }
                 }, (err) => {

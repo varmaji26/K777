@@ -84,25 +84,6 @@
         "isStarline": { "type": "boolean" },
         "isJackpot": { "type": "boolean" }
       }
-    },
-    "Transaction": {
-      "title": "Transaction",
-      "description": "A financial record.",
-      "type": "object",
-      "properties": {
-        "userId": { "type": "string" },
-        "userName": { "type": "string" },
-        "amount": { "type": "number" },
-        "type": { "type": "string" },
-        "status": { "type": "string" },
-        "description": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "balanceBefore": { "type": "number" },
-        "balanceAfter": { "type": "number" },
-        "bonusBalanceBefore": { "type": "number" },
-        "bonusBalanceAfter": { "type": "number" },
-        "relatedId": { "type": "string" }
-      }
     }
   },
   "auth": {
@@ -130,7 +111,7 @@
       "description": "User betting records"
     },
     "/transactions/{transactionId}": {
-      "schema": { "$ref": "#/entities/Transaction" },
+      "schema": { "type": "object" },
       "description": "Ledger entries"
     },
     "/settings/app-settings": {
@@ -140,6 +121,26 @@
     "/settings/gameRates": {
       "schema": { "type": "object" },
       "description": "Winning rate configuration"
+    },
+    "/notifications/{notifId}": {
+      "schema": { "type": "object" },
+      "description": "Broadcast notifications"
+    },
+    "/panelCharts/{gameId}": {
+      "schema": { "type": "object" },
+      "description": "Panel calendar charts"
+    },
+    "/jodiCharts/{gameId}": {
+      "schema": { "type": "object" },
+      "description": "Jodi history charts"
+    },
+    "/deposits/{depositId}": {
+      "schema": { "type": "object" },
+      "description": "Deposit requests"
+    },
+    "/withdrawals/{withdrawalId}": {
+      "schema": { "type": "object" },
+      "description": "Withdrawal requests"
     }
   }
 }
