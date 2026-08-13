@@ -8,14 +8,14 @@ service cloud.firestore {
      * Note: These rules are intentionally permissive for rapid prototyping and debugging.
      * They allow any user (even unauthenticated) to read and write all data.
      * Touching this file triggers a rule re-deployment.
-     * Updated at: 2026-08-13T00:45:00Z (Force Redeploy for jackpotGames fix)
+     * Updated at: 2026-08-13T01:10:00Z (Force Redeploy for settings permission fix)
      */
 
     match /{document=**} {
       allow read, write: if true;
     }
     
-    // Explicitly allowing public read for games to prevent errors during early hydration
+    // Explicitly allowing public read for essential app data to prevent errors during early hydration
     match /games/{gameId} {
       allow read: if true;
       allow write: if true;

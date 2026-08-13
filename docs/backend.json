@@ -143,6 +143,10 @@
     "/panelCharts/{gameId}": {
       "schema": { "type": "object" },
       "description": "Panel charts for games"
+    },
+    "/app-stats/dashboard": {
+      "schema": { "type": "object" },
+      "description": "Global statistics for admin dashboard"
     }
   }
 }
