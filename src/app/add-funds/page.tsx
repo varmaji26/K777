@@ -5,15 +5,16 @@ import { useState, useEffect, useMemo } from 'react';
 import { useUserStore, useSettingsStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CreditCard, AlertCircle, CheckCircle2, QrCode, Copy, RefreshCw } from 'lucide-react';
+import { CreditCard, AlertCircle, CheckCircle2, QrCode, Copy, RefreshCw, Clock, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Loader } from '@/components/loader';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
+import { format } from 'date-fns';
 
 const CustomWalletIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 512 512" className={className} xmlns="http://www.w3.org/2000/svg">
@@ -53,10 +54,43 @@ export default function AddFundsPage() {
   const [isAddingFunds, setIsAddingFunds] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [isImageLoading, setIsImageLoading] = useState(true);
+  const [pendingDeposit, setPendingDeposit] = useState<any>(null);
+  const [isLoadingPending, setIsLoadingPending] = useState(true);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    // Listen for pending deposits for the current user
+    const q = query(
+      collection(db, 'deposits'),
+      where('userId', '==', currentUser.id),
+      where('status', '==', 'pending')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        setPendingDeposit({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
+      } else {
+        setPendingDeposit(null);
+      }
+      setIsLoadingPending(false);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser?.id]);
 
   const presetAmounts = [200, 300, 500, 1000, 1500, 2000, 2500];
 
   const handleInstantPay = () => {
+    if (pendingDeposit) {
+        toast({
+            title: '⚠️ Request Pending',
+            description: 'Please wait for admin to approve your previous request.',
+            variant: 'destructive'
+        });
+        return;
+    }
+
     const numericAmount = parseFloat(amount);
     const minDeposit = appSettings.minDeposit || 100;
 
@@ -74,6 +108,8 @@ export default function AddFundsPage() {
   };
 
   const handleFinalSubmit = async () => {
+    if (pendingDeposit) return;
+    
     setIsAddingFunds(true);
 
     try {
@@ -156,47 +192,84 @@ export default function AddFundsPage() {
             </p>
           </div>
 
-          <div className="pt-1">
-            <label htmlFor="amount" className="text-[10px] font-bold text-gray-500 mb-1.5 block ml-1 uppercase">
-              Enter Deposit Amount (Min: ₹{appSettings.minDeposit || 100})
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-base font-bold text-primary">₹</span>
-              <Input
-                id="amount"
-                type="number"
-                placeholder=""
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="pl-10 h-12 text-lg font-bold rounded-xl border-gray-200 focus:ring-primary shadow-sm"
-              />
+          {isLoadingPending ? (
+            <div className="bg-white rounded-2xl p-8 border border-dashed border-gray-200 flex flex-col items-center justify-center gap-3">
+                <RefreshCw className="h-8 w-8 text-primary animate-spin" />
+                <p className="text-xs font-bold text-gray-400 uppercase">Checking Requests...</p>
             </div>
-          </div>
+          ) : pendingDeposit ? (
+            <div className="bg-blue-50 rounded-2xl p-6 border-2 border-dashed border-blue-200 flex flex-col items-center gap-4 text-center animate-in fade-in zoom-in duration-300">
+                <div className="bg-blue-600 h-12 w-12 rounded-full flex items-center justify-center shadow-lg shadow-blue-200">
+                    <Clock className="h-6 w-6 text-white animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                    <h3 className="text-sm font-black text-blue-900 uppercase">Request Pending</h3>
+                    <p className="text-[11px] font-bold text-blue-600/80 leading-snug">
+                        Your request for ₹{pendingDeposit.amount} is currently being verified by admin.
+                    </p>
+                </div>
+                <div className="w-full bg-white/60 p-3 rounded-xl border border-blue-100 space-y-2">
+                    <div className="flex justify-between items-center text-[10px] font-bold uppercase text-gray-400">
+                        <span>Submitted On</span>
+                        <span className="text-blue-900">{pendingDeposit.createdAt ? format(pendingDeposit.createdAt.toDate(), 'hh:mm a, dd MMM') : 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] font-bold uppercase text-gray-400">
+                        <span>Amount</span>
+                        <span className="text-blue-900">₹{pendingDeposit.amount}</span>
+                    </div>
+                </div>
+                <p className="text-[9px] font-black text-blue-400 uppercase tracking-tighter italic">
+                    Please wait until this request is approved or rejected before sending a new one.
+                </p>
+                <Button variant="outline" asChild className="h-8 rounded-lg text-[10px] uppercase font-bold border-blue-200 text-blue-600 bg-white hover:bg-blue-50">
+                    <History className="mr-1 h-3 w-3" /> View History
+                </Button>
+            </div>
+          ) : (
+            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="pt-1">
+                    <label htmlFor="amount" className="text-[10px] font-bold text-gray-500 mb-1.5 block ml-1 uppercase">
+                    Enter Deposit Amount (Min: ₹{appSettings.minDeposit || 100})
+                    </label>
+                    <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-base font-bold text-primary">₹</span>
+                    <Input
+                        id="amount"
+                        type="number"
+                        placeholder=""
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                        className="pl-10 h-12 text-lg font-bold rounded-xl border-gray-200 focus:ring-primary shadow-sm"
+                    />
+                    </div>
+                </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            {presetAmounts.map((preset) => (
-              <Button
-                key={preset}
-                variant="outline"
-                className={cn(
-                  "h-10 text-xs bg-white border-gray-200 shadow-sm text-gray-700 font-bold rounded-lg active:scale-95 transition-all",
-                  amount === preset.toString() && 'bg-primary text-white border-primary shadow-md'
-                )}
-                onClick={() => setAmount(preset.toString())}
-              >
-                ₹{preset}
-              </Button>
-            ))}
-          </div>
+                <div className="grid grid-cols-3 gap-2">
+                    {presetAmounts.map((preset) => (
+                    <Button
+                        key={preset}
+                        variant="outline"
+                        className={cn(
+                        "h-10 text-xs bg-white border-gray-200 shadow-sm text-gray-700 font-bold rounded-lg active:scale-95 transition-all",
+                        amount === preset.toString() && 'bg-primary text-white border-primary shadow-md'
+                        )}
+                        onClick={() => setAmount(preset.toString())}
+                    >
+                        ₹{preset}
+                    </Button>
+                    ))}
+                </div>
 
-          <Button
-            size="lg"
-            className="w-full h-12 text-base font-bold bg-gradient-to-b from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 rounded-xl shadow-md mt-2 active:scale-[0.98] transition-all"
-            onClick={handleInstantPay}
-          >
-            <QrCode className="mr-2 h-5 w-5" />
-            Proceed to Pay (Instant)
-          </Button>
+                <Button
+                    size="lg"
+                    className="w-full h-12 text-base font-bold bg-gradient-to-b from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 rounded-xl shadow-md mt-2 active:scale-[0.98] transition-all"
+                    onClick={handleInstantPay}
+                >
+                    <QrCode className="mr-2 h-5 w-5" />
+                    Proceed to Pay (Instant)
+                </Button>
+            </div>
+          )}
         </div>
       </main>
 
@@ -251,7 +324,7 @@ export default function AddFundsPage() {
                 <Button 
                     className="flex-1 bg-green-600 hover:bg-green-700 rounded-xl font-bold" 
                     onClick={handleFinalSubmit}
-                    disabled={isAddingFunds}
+                    disabled={isAddingFunds || !!pendingDeposit}
                 >
                     {isAddingFunds ? <Loader className="h-4 w-4 mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
                     {isAddingFunds ? 'Verifying...' : 'I Have Paid (Submit)'}
