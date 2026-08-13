@@ -139,6 +139,10 @@
     "/withdrawals/{withdrawalId}": {
       "schema": { "type": "object" },
       "description": "Withdrawal requests"
+    },
+    "/panelCharts/{gameId}": {
+      "schema": { "type": "object" },
+      "description": "Panel charts for games"
     }
   }
 }
