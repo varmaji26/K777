@@ -16,7 +16,10 @@
         "status": { "type": "string", "enum": ["active", "blocked"] },
         "joinedAt": { "type": "string", "format": "date-time" },
         "depositBonusEnabled": { "type": "boolean" },
-        "depositBonusPercentage": { "type": "number" }
+        "depositBonusPercentage": { "type": "number" },
+        "totalBonusGiven": { "type": "number" },
+        "hasDeposited": { "type": "boolean" },
+        "referredBy": { "type": "string" }
       },
       "required": ["id", "name", "mobile", "status"]
     },
@@ -77,7 +80,10 @@
         "totalAmount": { "type": "number" },
         "status": { "type": "string", "enum": ["running", "won", "lost", "cancelled"] },
         "createdAt": { "type": "string", "format": "date-time" },
-        "betSource": { "type": "string" }
+        "betSource": { "type": "string", "enum": ["real", "bonus"] },
+        "winningAmount": { "type": "number" },
+        "isStarline": { "type": "boolean" },
+        "isJackpot": { "type": "boolean" }
       }
     },
     "Transaction": {
@@ -89,10 +95,14 @@
         "userName": { "type": "string" },
         "amount": { "type": "number" },
         "type": { "type": "string" },
+        "status": { "type": "string" },
         "description": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "balanceBefore": { "type": "number" },
-        "balanceAfter": { "type": "number" }
+        "balanceAfter": { "type": "number" },
+        "bonusBalanceBefore": { "type": "number" },
+        "bonusBalanceAfter": { "type": "number" },
+        "relatedId": { "type": "string" }
       }
     }
   },
@@ -128,6 +138,10 @@
       "schema": { "type": "object" },
       "description": "Global application configuration"
     },
+    "/settings/gameRates": {
+      "schema": { "type": "object" },
+      "description": "Winning rate configuration"
+    },
     "/notifications/{notifId}": {
       "schema": { "type": "object" },
       "description": "Broadcast notifications"
@@ -144,9 +158,9 @@
       "schema": { "type": "object" },
       "description": "Panel charts for games"
     },
-    "/app-stats/dashboard": {
+    "/jodiCharts/{gameId}": {
       "schema": { "type": "object" },
-      "description": "Global statistics for admin dashboard"
+      "description": "Jodi charts for games"
     }
   }
 }
