@@ -5,12 +5,7 @@ service cloud.firestore {
 
     /**
      * KALYAN 777 SECURITY RULES
-     * Updated at: 2025-05-15T12:05:00Z (Force redeploy to fix permission errors)
-     * 
-     * Core Philosophy:
-     * - Public data (Games, Settings, Charts, Notifications) is readable by everyone.
-     * - User private data (Profiles, Bids, Transactions) is protected by ownership.
-     * - Admin access is controlled via 'isAdmin' flag in the user document.
+     * Last Updated: 2025-05-15T13:45:00Z (Force Redeploy for Permissions)
      */
 
     // --- HELPER FUNCTIONS ---
@@ -18,19 +13,19 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
     function isAdmin() {
-      // For prototyping, we check the user document directly
+      // Check for Admin document or isAdmin flag in user doc
       return isSignedIn() && 
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true || 
          request.auth.uid == 'admin-special-uid');
     }
 
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
     // --- PUBLIC READ COLLECTIONS ---
-    // These collections must be readable by any visitor to see results and schedules
+    // These must be readable by everyone so the app can load games/settings on home page
     
     match /games/{gameId} {
       allow read: if true;
@@ -76,7 +71,6 @@ service cloud.firestore {
     
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      // Allow creation during signup
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
@@ -84,7 +78,6 @@ service cloud.firestore {
 
     match /bids/{bidId} {
       allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin());
-      // On create, ensure user provides their own ID
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin();
     }

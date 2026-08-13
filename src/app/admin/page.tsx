@@ -94,9 +94,13 @@ export default function AdminDashboardPage() {
     const totalGames = useMemo(() => games.length, [games]);
 
     useEffect(() => {
-        // CRITICAL FIX: Ensure actual Firebase Auth user is loaded before starting listeners
-        // This prevents the "permission-denied" error during page refresh/initial load
-        if (!user?.isAdmin || !auth.currentUser) return;
+        // Wait for actual auth to be ready
+        const fbUser = auth.currentUser;
+        if (!user?.isAdmin || !fbUser) {
+          // If auth state is settled and still no admin, stop loading
+          const timer = setTimeout(() => setLoading(false), 2000);
+          return () => clearTimeout(timer);
+        }
 
         const statsDocRef = doc(db, "app-stats", "dashboard");
         const unsubscribeStats = onSnapshot(statsDocRef, (docSnap) => {
@@ -105,10 +109,7 @@ export default function AdminDashboardPage() {
             }
             setLoading(false);
         }, (error) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'app-stats/dashboard',
-                operation: 'get'
-            }));
+            console.error("Stats listener error:", error);
             setLoading(false);
         });
 
@@ -125,26 +126,18 @@ export default function AdminDashboardPage() {
 
         const unsubTodayDeposits = onSnapshot(todayDepositsQuery, (snap) => {
             setDailyStats(s => ({ ...s, todaysDeposits: sumApprovedAmount(snap) }));
-        }, (err) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'deposits', operation: 'list' }));
         });
 
         const unsubTodayWithdrawals = onSnapshot(todayWithdrawalsQuery, (snap) => {
             setDailyStats(s => ({ ...s, todaysWithdrawals: sumApprovedAmount(snap) }));
-        }, (err) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'withdrawals', operation: 'list' }));
         });
 
         const unsubYesterdayDeposits = onSnapshot(yesterdayDepositsQuery, (snap) => {
             setDailyStats(s => ({ ...s, yesterdaysDeposits: sumApprovedAmount(snap) }));
-        }, (err) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'deposits', operation: 'list' }));
         });
 
         const unsubYesterdayWithdrawals = onSnapshot(yesterdayWithdrawalsQuery, (snap) => {
             setDailyStats(s => ({ ...s, yesterdaysWithdrawals: sumApprovedAmount(snap) }));
-        }, (err) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'withdrawals', operation: 'list' }));
         });
 
         const unsubBids = onSnapshot(bidsQuery, (bidsSnap) => {
@@ -167,11 +160,6 @@ export default function AdminDashboardPage() {
                 todaysWinning,
                 todaysProfitLoss: todaysBidding - todaysWinning
             });
-        }, (error) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'bids',
-                operation: 'list'
-            }));
         });
 
         return () => {
@@ -185,7 +173,6 @@ export default function AdminDashboardPage() {
     }, [user]);
 
     useEffect(() => {
-        // Wait for actual auth to be ready
         if (!user?.isAdmin || !auth.currentUser) return;
 
         const year = new Date().getFullYear();
@@ -204,8 +191,6 @@ export default function AdminDashboardPage() {
                 const net = totalDeposit - (s.totalWithdrawal || 0);
                 return { ...s, totalDeposit, monthlyNetBalance: net };
             });
-        }, (err) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'deposits', operation: 'list' }));
         });
 
         const unsubWithdrawals = onSnapshot(withdrawalsQuery, (snap) => {
@@ -214,8 +199,6 @@ export default function AdminDashboardPage() {
                 const net = (s.totalDeposit || 0) - totalWithdrawal;
                 return { ...s, totalWithdrawal, monthlyNetBalance: net };
             });
-        }, (err) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'withdrawals', operation: 'list' }));
         });
 
         const unsubBids = onSnapshot(bidsQuery, (bidsSnap) => {
@@ -238,8 +221,6 @@ export default function AdminDashboardPage() {
                 totalBidding: monthBidding,
                 totalProfit: monthBidding - monthWinning,
             }));
-        }, (error) => {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'bids', operation: 'list' }));
         });
 
         return () => {

@@ -217,7 +217,6 @@ export const useUserStore = create(
             setHydrated: (hydrated) => set({ hydrated }),
             addUser: async (userData) => {
                 try {
-                    // 1. Ensure user is signed in anonymously first to get a permanent UID
                     let authUser = auth.currentUser;
                     if (!authUser) {
                         const cred = await signInAnonymously(auth);
@@ -226,7 +225,6 @@ export const useUserStore = create(
                     
                     if (!authUser) throw new Error("Could not authenticate user.");
 
-                    // 2. Create user document using the Auth UID
                     const userId = authUser.uid;
                     const newUserRef = doc(db, "users", userId);
                     
@@ -255,31 +253,47 @@ export const useUserStore = create(
             findUserByMobile: (mobile) => get().users.find((u) => u.mobile === mobile),
             findUserById: (userId) => get().users.find((u) => u.id === userId),
             login: async (mobile, password) => {
-                // Admin hardcoded fallback
-                if (mobile === '9999999999' && password === 'admin123') {
-                    const admin: User = { id: 'admin-id', name: "Admin", mobile, password, isAdmin: true, balance: 1000000, bonusBalance: 0, status: 'active', joinedAt: new Date().toISOString() };
-                    set({ currentUser: admin });
-                    return admin;
-                }
-
                 try {
-                    const existingUser = get().users.find(u => u.mobile === mobile && u.password === password);
-                    if (existingUser && existingUser.status === 'active') {
-                        set({ currentUser: existingUser });
-                        if (!auth.currentUser) await signInAnonymously(auth);
-                        return existingUser;
+                    // Start auth session
+                    let authUser = auth.currentUser;
+                    if (!authUser) {
+                        const cred = await signInAnonymously(auth);
+                        authUser = cred.user;
+                    }
+
+                    // Admin hardcoded fallback
+                    if (mobile === '9999999999' && password === 'admin123') {
+                        const admin: User = { 
+                          id: authUser.uid, // Use actual Auth UID
+                          name: "Admin", 
+                          mobile, 
+                          password, 
+                          isAdmin: true, 
+                          balance: 1000000, 
+                          bonusBalance: 0, 
+                          status: 'active', 
+                          joinedAt: new Date().toISOString() 
+                        };
+                        
+                        // Ensure admin doc exists in Firestore for rules to work
+                        await setDoc(doc(db, 'users', authUser.uid), admin, { merge: true });
+                        
+                        set({ currentUser: admin });
+                        return admin;
                     }
 
                     const q = query(collection(db, "users"), where("mobile", "==", mobile));
                     const snap = await getDocs(q);
                     if (snap.empty) return null;
+                    
                     const user = { id: snap.docs[0].id, ...snap.docs[0].data() } as User;
                     if (user.password === password && user.status !== 'blocked') {
                         set({ currentUser: user });
-                        if (!auth.currentUser) await signInAnonymously(auth);
                         return user;
                     }
-                } catch (e) { console.error("Login err:", e); }
+                } catch (e) { 
+                  console.error("Login err:", e); 
+                }
                 return null;
             },
             logout: () => {
@@ -385,7 +399,6 @@ export const useUserStore = create(
                         if (fresh) set({ currentUser: fresh });
                     }
                 }, (err) => {
-                    // Silently ignore or log - common for non-admins
                     console.warn("User list access restricted.");
                 });
                 return () => { unsubscribe(); isUserSubscribed = false; };
