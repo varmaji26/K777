@@ -4,8 +4,13 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * MATKA APP SECURITY RULES
-     * Updated at: 2025-05-15T10:00:00Z (Fixing all public read permissions)
+     * KALYAN 777 SECURITY RULES
+     * Updated at: 2025-05-15T11:45:00Z (Force redeploy to fix permission errors)
+     * 
+     * Core Philosophy:
+     * - Public data (Games, Settings, Charts, Notifications) is readable by everyone.
+     * - User private data (Profiles, Bids, Transactions) is protected by ownership.
+     * - Admin access is controlled via 'isAdmin' flag in the user document.
      */
 
     // --- HELPER FUNCTIONS ---
@@ -18,15 +23,15 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // High performance admin check (requires user doc or custom claims)
-      // For prototyping, we allow admin access if 'isAdmin' field is true on the user document
+      // For prototyping, we check the user document directly
       return isSignedIn() && 
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true || 
          request.auth.uid == 'admin-special-uid');
     }
 
     // --- PUBLIC READ COLLECTIONS ---
-    // Anyone (even guest users) should be able to see games, results, settings and charts
+    // These collections must be readable by any visitor to see results and schedules
+    
     match /games/{gameId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -43,6 +48,12 @@ service cloud.firestore {
     }
 
     match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Explicitly allow sub-paths in settings if needed (e.g. /settings/app-settings)
+    match /settings/app-settings {
       allow read: if true;
       allow write: if isAdmin();
     }
@@ -86,7 +97,7 @@ service cloud.firestore {
 
     match /transactions/{transactionId} {
       allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin());
-      allow create: if isSignedIn(); // Logged via server or non-blocking client logic
+      allow create: if isSignedIn();
       allow update, delete: if isAdmin();
     }
 
