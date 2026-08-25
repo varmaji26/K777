@@ -100,7 +100,6 @@ export default function DepositRequestsPage() {
     setProcessingStatus(prev => ({...prev, [request.id]: status}));
 
     try {
-        // CRITICAL FIX: Run collection query OUTSIDE the transaction
         const transQuery = query(collection(db, 'transactions'), where('relatedId', '==', request.id));
         const transSnapshot = await getDocs(transQuery);
         const transDocRef = transSnapshot.docs.length > 0 ? transSnapshot.docs[0].ref : null;
@@ -141,7 +140,14 @@ export default function DepositRequestsPage() {
                       totalBonusGiven: increment(bonusAmount),
                       hasDeposited: true
                   });
-                  transaction.update(statsDocRef, { totalBalance: increment(Number(request.amount)) });
+                  
+                  // FIX: Check if stats doc exists before updating
+                  const statsDoc = await transaction.get(statsDocRef);
+                  if (!statsDoc.exists()) {
+                    transaction.set(statsDocRef, { totalBalance: Number(request.amount), totalGames: 0 });
+                  } else {
+                    transaction.update(statsDocRef, { totalBalance: increment(Number(request.amount)) });
+                  }
                   
                   if (transDocRef) {
                     transaction.update(transDocRef, { 
