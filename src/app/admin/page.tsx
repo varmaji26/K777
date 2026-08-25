@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { doc, onSnapshot, DocumentData, collection, query, where, Timestamp } from 'firebase/firestore';
+import { doc, onSnapshot, DocumentData, collection, query, where, Timestamp, orderBy } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Gamepad2, ArrowUpCircle, ArrowDownCircle, TrendingUp, TrendingDown, Scale, Landmark, BarChart, WalletCards } from 'lucide-react';
@@ -73,11 +73,11 @@ const sumTransactions = (snapshot: any, targetTypes: string[]): number => {
         const data = doc.data();
         const matchesType = targetTypes.includes(data.type);
         
-        // Status can be 'approved', 'success', 'won', 'Given', or undefined (for legacy/simple manual additions)
+        // Status can be 'approved', 'success', 'won', 'Given', or undefined (for manual additions)
         const isSuccessful = !data.status || ['approved', 'success', 'won', 'Given'].includes(data.status);
         const isExcluded = data.status === 'pending' || data.status === 'rejected' || data.status === 'cancelled' || data.status === 'reverted';
 
-        if (matchesType && !isExcluded) {
+        if (matchesType && isSuccessful && !isExcluded) {
             const val = parseFloat(data.amount);
             if (!isNaN(val)) {
                 total += Math.abs(val);
@@ -110,8 +110,8 @@ export default function AdminDashboardPage() {
     }, [users]);
 
     useEffect(() => {
-        const fbUser = auth.currentUser;
-        if (!user?.isAdmin || !fbUser) {
+        if (!user?.isAdmin) {
+          // Allow some time for hydration/auth state to stabilize
           const timer = setTimeout(() => setLoading(false), 2000);
           return () => clearTimeout(timer);
         }
@@ -145,17 +145,25 @@ export default function AdminDashboardPage() {
         // --- REAL-TIME LISTENERS ---
         
         // 1. Today's Transactions
-        const todayTransQuery = query(collection(db, "transactions"), where("createdAt", ">=", todayTs), where("createdAt", "<=", endOfTodayTs));
+        const todayTransQuery = query(
+            collection(db, "transactions"), 
+            where("createdAt", ">=", todayTs), 
+            where("createdAt", "<=", endOfTodayTs)
+        );
         const unsubTodayTrans = onSnapshot(todayTransQuery, (snap) => {
             setDailyStats(s => ({ 
                 ...s, 
                 todaysDeposits: sumTransactions(snap, ['deposit', 'welcome_bonus', 'referral_bonus']),
-                todaysWithdrawals: sumTransactions(snap, ['withdrawal', 'withdrawal_approved'])
+                todaysWithdrawals: sumTransactions(snap, ['withdrawal', 'withdrawal_approved', 'withdrawal_rejected_refund_placeholder'])
             }));
         });
 
         // 2. Yesterday's Transactions
-        const yesterdayTransQuery = query(collection(db, "transactions"), where("createdAt", ">=", yesterdayTs), where("createdAt", "<=", endOfYesterdayTs));
+        const yesterdayTransQuery = query(
+            collection(db, "transactions"), 
+            where("createdAt", ">=", yesterdayTs), 
+            where("createdAt", "<=", endOfYesterdayTs)
+        );
         const unsubYesterdayTrans = onSnapshot(yesterdayTransQuery, (snap) => {
             setDailyStats(s => ({ 
                 ...s, 
@@ -165,7 +173,11 @@ export default function AdminDashboardPage() {
         });
 
         // 3. Today's Bids (Bidding & Winning)
-        const todayBidsQuery = query(collection(db, "bids"), where("createdAt", ">=", todayTs), where("createdAt", "<=", endOfTodayTs));
+        const todayBidsQuery = query(
+            collection(db, "bids"), 
+            where("createdAt", ">=", todayTs), 
+            where("createdAt", "<=", endOfTodayTs)
+        );
         const unsubBids = onSnapshot(todayBidsQuery, (bidsSnap) => {
             let bidding = 0;
             let winning = 0;
@@ -196,7 +208,7 @@ export default function AdminDashboardPage() {
 
     // Monthly Report Listeners
     useEffect(() => {
-        if (!user?.isAdmin || !auth.currentUser) return;
+        if (!user?.isAdmin) return;
 
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
@@ -205,8 +217,16 @@ export default function AdminDashboardPage() {
         const startOfMonthTs = Timestamp.fromDate(startOfMonth);
         const endOfMonthTs = Timestamp.fromDate(endOfMonth);
         
-        const monthlyTransQuery = query(collection(db, "transactions"), where("createdAt", ">=", startOfMonthTs), where("createdAt", "<=", endOfMonthTs));
-        const monthlyBidsQuery = query(collection(db, "bids"), where("createdAt", ">=", startOfMonthTs), where("createdAt", "<=", endOfMonthTs));
+        const monthlyTransQuery = query(
+            collection(db, "transactions"), 
+            where("createdAt", ">=", startOfMonthTs), 
+            where("createdAt", "<=", endOfMonthTs)
+        );
+        const monthlyBidsQuery = query(
+            collection(db, "bids"), 
+            where("createdAt", ">=", startOfMonthTs), 
+            where("createdAt", "<=", endOfMonthTs)
+        );
         
         const unsubMonthlyTrans = onSnapshot(monthlyTransQuery, (snap) => {
             const dep = sumTransactions(snap, ['deposit', 'welcome_bonus', 'referral_bonus']);
@@ -317,3 +337,4 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
+
