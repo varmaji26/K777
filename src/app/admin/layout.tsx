@@ -1,4 +1,3 @@
-
 'use client';
 import { Button } from '@/components/ui/button';
 import { Bell, ChevronRight, Gamepad2, LogOut, Settings, User, Home, Eye, Users, PlusSquare, Image as ImageIcon, MessageSquare, Send, CheckCircle, XCircle, BarChart2, LineChart, History, Award, Gift, FileText, FileSpreadsheet, Lock, Shield, Settings2, BarChart, FileDigit, PanelTop, Menu, ChevronDown, ArrowUp, ArrowDown, Share2, Star, Trophy, Search } from 'lucide-react';
@@ -47,79 +46,39 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
     const router = useRouter();
     const pathname = usePathname();
     const isSheet = !!closeSheet;
-
-    // Badge states
     const [pendingWithdrawals, setPendingWithdrawals] = useState(0);
     const [pendingDeposits, setPendingDeposits] = useState(0);
     const [newBidsCount, setNewBidsCount] = useState(0);
     const [newWinsCount, setNewWinsCount] = useState(0);
     const [newUsersCount, setNewUsersCount] = useState(0);
 
-    // Track viewed timestamps to clear badges on click
-    const [lastViewed, setLastViewed] = useState({
-        bids: 0,
-        wins: 0,
-        users: 0,
-        requests: 0
-    });
-
     useEffect(() => {
-        // Load viewed timestamps from localStorage
-        setLastViewed({
-            bids: parseInt(localStorage.getItem('lastViewedBidsTimestamp') || '0', 10),
-            wins: parseInt(localStorage.getItem('lastViewedWinsTimestamp') || '0', 10),
-            users: parseInt(localStorage.getItem('lastViewedUsersTimestamp') || '0', 10),
-            requests: parseInt(localStorage.getItem('lastViewedRequestsTimestamp') || '0', 10)
-        });
-    }, [pathname]);
-
-    useEffect(() => {
-        // Withdrawals - Filter by status, then by time on client to avoid index requirement
         const qWithdrawals = query(collection(db, "withdrawals"), where("status", "==", "pending"));
-        const unsubWithdrawals = onSnapshot(qWithdrawals, (snapshot) => {
-            const count = snapshot.docs.filter(doc => {
-                const data = doc.data();
-                const createdAt = data.createdAt?.toMillis() || 0;
-                return createdAt > lastViewed.requests;
-            }).length;
-            setPendingWithdrawals(count);
-        });
+        const unsubWithdrawals = onSnapshot(qWithdrawals, (snapshot) => setPendingWithdrawals(snapshot.size));
 
-        // Deposits
         const qDeposits = query(collection(db, "deposits"), where("status", "==", "pending"));
-        const unsubDeposits = onSnapshot(qDeposits, (snapshot) => {
-            const count = snapshot.docs.filter(doc => {
-                const data = doc.data();
-                const createdAt = data.createdAt?.toMillis() || 0;
-                return createdAt > lastViewed.requests;
-            }).length;
-            setPendingDeposits(count);
-        });
+        const unsubDeposits = onSnapshot(qDeposits, (snapshot) => setPendingDeposits(snapshot.size));
         
-        // Bids & Wins
-        const unsubBids = onSnapshot(collection(db, "bids"), (snapshot) => {
-            const newBids = snapshot.docs.filter(doc => {
-                const data = doc.data();
-                const createdAt = data.createdAt?.toMillis() || 0;
-                return createdAt > lastViewed.bids;
-            });
-            setNewBidsCount(newBids.length);
-
+        const lastViewedBidsTimestamp = parseInt(localStorage.getItem('lastViewedBidsTimestamp') || '0', 10);
+        const bidsQuery = query(collection(db, "bids"), where("createdAt", ">", Timestamp.fromMillis(lastViewedBidsTimestamp)));
+        const unsubBids = onSnapshot(bidsQuery, (snapshot) => {
+            setNewBidsCount(snapshot.size);
+            const lastViewedWinsTimestamp = parseInt(localStorage.getItem('lastViewedWinsTimestamp') || '0', 10);
             const newWins = snapshot.docs.filter(doc => {
                 const data = doc.data();
-                const createdAt = data.createdAt?.toMillis() || 0;
-                return data.status === 'won' && createdAt > lastViewed.wins;
+                const createdAtMillis = data.createdAt.toMillis();
+                return data.status === 'won' && createdAtMillis > lastViewedWinsTimestamp;
             });
             setNewWinsCount(newWins.length);
         });
 
-        // Users
+        const lastViewedUsersTimestamp = parseInt(localStorage.getItem('lastViewedUsersTimestamp') || '0', 10);
         const qUsers = query(collection(db, "users"), where("isAdmin", "==", false));
         const unsubUsers = onSnapshot(qUsers, (snapshot) => {
             const count = snapshot.docs.filter(doc => {
                 const data = doc.data();
-                const joinedAt = data.joinedAt ? new Date(data.joinedAt).getTime() : 0;
-                return joinedAt > lastViewed.users;
+                if (!data.joinedAt) return false;
+                return new Date(data.joinedAt).getTime() > lastViewedUsersTimestamp;
             }).length;
             setNewUsersCount(count);
         });
@@ -130,43 +89,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
             unsubBids();
             unsubUsers();
         };
-    }, [lastViewed]);
-
-    const handleLogout = () => {
-        logout();
-        router.push('/');
-        if (closeSheet) closeSheet();
-    };
-
-    const handleLinkClick = (href: string, key?: string) => {
-        const now = Date.now().toString();
-        const nowInt = parseInt(now, 10);
-
-        // Clear badges logic
-        if (key === 'bid-history') {
-            localStorage.setItem('lastViewedBidsTimestamp', now);
-            setNewBidsCount(0);
-            setLastViewed(prev => ({ ...prev, bids: nowInt }));
-        } else if (key === 'win-history') {
-            localStorage.setItem('lastViewedWinsTimestamp', now);
-            setNewWinsCount(0);
-            setLastViewed(prev => ({ ...prev, wins: nowInt }));
-        } else if (key === 'users') {
-            localStorage.setItem('lastViewedUsersTimestamp', now);
-            setNewUsersCount(0);
-            setLastViewed(prev => ({ ...prev, users: nowInt }));
-        } else if (key === 'customer-requests') {
-            localStorage.setItem('lastViewedRequestsTimestamp', now);
-            setPendingDeposits(0);
-            setPendingWithdrawals(0);
-            setLastViewed(prev => ({ ...prev, requests: nowInt }));
-        }
-
-        if (!href.startsWith('#')) {
-            router.push(href);
-        }
-        if (closeSheet) closeSheet();
-    };
+    }, [pathname]);
     
     const adminNavLinks = [
       { key: 'dashboard', href: '/admin', label: 'Dashboard', icon: Home },
@@ -181,8 +104,8 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
       { key: 'update-close', href: '/admin/update-result-close', label: 'Update Result (Close)', icon: XCircle, className: "text-red-600" },
       { key: 'send-notification', href: '/admin/send-notification', label: 'Send Notification', icon: Send },
       { key: 'market-load', href: '/admin/market-wise-load', label: 'Market-wise Load', icon: LineChart },
-      { key: 'bid-history', href: '/admin/bids-history', label: 'Bid History', icon: History, badgeCount: newBidsCount },
-      { key: 'win-history', href: '/admin/win-history', label: 'Win History', icon: Award, badgeCount: newWinsCount },
+      { key: 'bid-history', href: '/admin/bids-history?viewed=true', label: 'Bid History', icon: History, badgeCount: newBidsCount },
+      { key: 'win-history', href: '/admin/win-history?viewed=true', label: 'Win History', icon: Award, badgeCount: newWinsCount },
       { key: 'bonus-history', href: '/admin/bonus-history', label: 'Bonus History', icon: Gift },
       { key: 'deposit-history', href: '/admin/deposit-history', label: 'Deposit History', icon: ArrowUp, isSubItem: true },
       { key: 'withdrawal-history', href: '/admin/withdrawal-history', label: 'Withdrawal History', icon: ArrowDown, isSubItem: true },
@@ -191,6 +114,18 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
       { key: 'settings', href: '/admin/settings', label: 'Settings', icon: Settings2 },
     ];
 
+    const handleLogout = () => {
+        logout();
+        router.push('/');
+        if (closeSheet) closeSheet();
+    };
+
+    const handleLinkClick = (href: string) => {
+        if (href.startsWith('#')) return;
+        router.push(href);
+        if (closeSheet) closeSheet();
+    };
+    
     if (!currentUser) return null;
     
     const topLinks = adminNavLinks.filter(l => ['dashboard', 'users', 'add-game', 'manage-starline', 'manage-jackpot', 'banners'].includes(l.key));
@@ -207,15 +142,19 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
     const settingsLink = adminNavLinks.find(l => l.key === 'settings');
 
     const renderLink = (link: any) => {
-        const navLink = (
+      let badgeCount = link.badgeCount;
+      if (link.key === 'withdrawal-requests') badgeCount = pendingWithdrawals;
+      if (link.key === 'deposit-requests') badgeCount = pendingDeposits;
+
+      const navLink = (
             <NavLink 
                 href={link.href}
                 icon={link.icon}
-                badgeCount={link.badgeCount}
+                badgeCount={badgeCount}
                 className={link.className}
                 onClick={(e) => {
                     e.preventDefault();
-                    handleLinkClick(link.href, link.key)
+                    handleLinkClick(link.href)
                 }}
             >
                 {link.label}
@@ -236,7 +175,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
                             className="h-full w-full"
                             xmlns="http://www.w3.org/2000/svg"
                         >
-                            <g>
+                            <g id="SVGRepo_iconCarrier">
                                 <circle style={{ fill: '#ff370a' }} cx="254" cy="254" r="254"></circle>
                                 <g>
                                     <path style={{ fill: '#02587e' }} d="M255.2,362.8c-0.4,0-0.8,0.4-1.2,0.4c-0.4,0-0.8-0.4-1.2-0.4H255.2z"></path>
@@ -269,7 +208,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
                 {topLinks.filter(l => ['dashboard', 'users'].includes(l.key)).map(renderLink)}
 
                 <Collapsible>
-                    <CollapsibleTrigger className="w-full text-left" onClick={() => handleLinkClick('#')}>
+                    <CollapsibleTrigger className="w-full text-left">
                         <div className={cn("flex items-center gap-4 rounded-lg px-3 py-3 text-gray-700 transition-all hover:bg-gray-100 w-full")}>
                             <Eye className="h-5 w-5 text-orange-500" />
                             <span className="flex-1 font-medium text-sm text-left">View All Load</span>
@@ -292,7 +231,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
                 {topLinks.filter(l => ['add-game', 'manage-starline'].includes(l.key)).map(renderLink)}
 
                 <Collapsible>
-                    <CollapsibleTrigger className="w-full" onClick={() => handleLinkClick('#', 'customer-requests')}>
+                    <CollapsibleTrigger className="w-full">
                         <div className={cn("flex items-center gap-4 rounded-lg px-3 py-3 text-gray-700 transition-all hover:bg-gray-100 w-full")}>
                             <MessageSquare className="h-5 w-5 text-orange-500" />
                             <span className="flex-1 font-medium text-sm text-left">Customer Requests</span>
@@ -303,7 +242,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
                     <CollapsibleContent className="pl-8 pr-2 py-1 space-y-1">
                         {adminNavLinks.filter(l => l.key === 'deposit-requests').map(link => {
                              const isActive = pathname === link.href;
-                             const navLink = <Link href={link.href} onClick={(e) => { e.preventDefault(); handleLinkClick(link.href, 'customer-requests')}} className={cn("flex items-center text-sm p-2 rounded-md", isActive ? "bg-gray-100 text-gray-900" : "text-gray-600 hover:bg-gray-50")}>
+                             const navLink = <Link href={link.href} onClick={(e) => { e.preventDefault(); handleLinkClick(link.href)}} className={cn("flex items-center text-sm p-2 rounded-md", isActive ? "bg-gray-100 text-gray-900" : "text-gray-600 hover:bg-gray-50")}>
                                  <span>{link.label}</span>
                                  {pendingDeposits > 0 && <span className="ml-auto inline-block rounded-full bg-red-500 px-2 py-0.5 text-xs text-white">{pendingDeposits}</span>}
                              </Link>
@@ -312,7 +251,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
                         })}
                         {adminNavLinks.filter(l => l.key === 'withdrawal-requests').map(link => {
                              const isActive = pathname === link.href;
-                             const navLink = <Link href={link.href} onClick={(e) => { e.preventDefault(); handleLinkClick(link.href, 'customer-requests')}} className={cn("flex items-center text-sm p-2 rounded-md", isActive ? "bg-gray-100 text-gray-900" : "text-gray-600 hover:bg-gray-50")}>
+                             const navLink = <Link href={link.href} onClick={(e) => { e.preventDefault(); handleLinkClick(link.href)}} className={cn("flex items-center text-sm p-2 rounded-md", isActive ? "bg-gray-100 text-gray-900" : "text-gray-600 hover:bg-gray-50")}>
                                  <span>{link.label}</span>
                                  {pendingWithdrawals > 0 && <span className="ml-auto inline-block rounded-full bg-red-500 px-2 py-0.5 text-xs text-white">{pendingWithdrawals}</span>}
                               </Link>
@@ -330,7 +269,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
                 {historyLinks.map(renderLink)}
                 
                 <Collapsible>
-                    <CollapsibleTrigger className="w-full" onClick={() => handleLinkClick('#')}>
+                    <CollapsibleTrigger className="w-full">
                         <div className={cn("flex items-center gap-4 rounded-lg px-3 py-3 text-gray-700 transition-all hover:bg-gray-100 w-full")}>
                             <FileSpreadsheet className="h-5 w-5 text-orange-500" />
                             <span className="flex-1 font-medium text-sm text-left">Payment History</span>
