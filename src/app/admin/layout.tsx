@@ -39,7 +39,11 @@ const NavLink = ({ href, icon: Icon, children, badgeCount, onClick, className }:
         >
             <Icon className={cn("h-5 w-5 text-orange-500", className?.includes("text-") && className.split(" ").find(c => c.startsWith("text-")))} />
             <span className="flex-1 font-medium text-sm">{children}</span>
-            {badgeCount != null && badgeCount > 0 && <span className="ml-auto inline-block rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white min-w-[20px] text-center">{badgeCount}</span>}
+            {badgeCount != null && badgeCount > 0 && (
+                <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-sm">
+                    {badgeCount > 99 ? '99+' : badgeCount}
+                </span>
+            )}
         </Link>
     );
 };
@@ -56,26 +60,21 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
     const [newUsersCount, setNewUsersCount] = useState(0);
 
     useEffect(() => {
-        // Guard: Only fetch counts if we have an admin user and Firebase Auth is ready
-        // This prevents permission errors during early hydration
-        if (!currentUser?.isAdmin || !auth.currentUser) return;
+        if (!currentUser?.isAdmin) return;
 
+        // Fetch Pending Withdrawals
         const qWithdrawals = query(collection(db, "withdrawals"), where("status", "==", "pending"));
         const unsubWithdrawals = onSnapshot(qWithdrawals, (snapshot) => setPendingWithdrawals(snapshot.size), (err) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'withdrawals',
-                operation: 'list'
-            }));
+            console.error("Sidebar withdrawals error:", err);
         });
 
+        // Fetch Pending Deposits
         const qDeposits = query(collection(db, "deposits"), where("status", "==", "pending"));
         const unsubDeposits = onSnapshot(qDeposits, (snapshot) => setPendingDeposits(snapshot.size), (err) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'deposits',
-                operation: 'list'
-            }));
+             console.error("Sidebar deposits error:", err);
         });
         
+        // Notification tracking for Bids
         const lastViewedBidsTimestamp = parseInt(localStorage.getItem('lastViewedBidsTimestamp') || '0', 10);
         const bidsQuery = query(collection(db, "bids"), where("createdAt", ">", Timestamp.fromMillis(lastViewedBidsTimestamp)));
         const unsubBids = onSnapshot(bidsQuery, (snapshot) => {
@@ -87,13 +86,9 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
                 return data.status === 'won' && createdAtMillis > lastViewedWinsTimestamp;
             });
             setNewWinsCount(newWins.length);
-        }, (err) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'bids',
-                operation: 'list'
-            }));
         });
 
+        // Notification tracking for Users
         const lastViewedUsersTimestamp = parseInt(localStorage.getItem('lastViewedUsersTimestamp') || '0', 10);
         const qUsers = query(collection(db, "users"), where("isAdmin", "==", false));
         const unsubUsers = onSnapshot(qUsers, (snapshot) => {
@@ -103,11 +98,6 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
                 return new Date(data.joinedAt).getTime() > lastViewedUsersTimestamp;
             }).length;
             setNewUsersCount(count);
-        }, (err) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'users',
-                operation: 'list'
-            }));
         });
 
         return () => {
@@ -116,7 +106,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
             unsubBids();
             unsubUsers();
         };
-    }, [currentUser, pathname]);
+    }, [currentUser]);
     
     const adminNavLinks = [
       { key: 'dashboard', href: '/admin', label: 'Dashboard', icon: Home },
@@ -125,8 +115,8 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
       { key: 'manage-starline', href: '/admin/starline', label: 'Manage Starline', icon: Star },
       { key: 'manage-jackpot', href: '/admin/jackpot', label: 'Manage Jackpot', icon: Trophy },
       { key: 'banners', href: '#/manage-banners', label: 'Manage Banners', icon: ImageIcon },
-      { key: 'withdrawal-requests', href: '/admin/withdrawal-requests', label: 'Withdrawal Requests', icon: FileText, isSubItem: true, badgeCount: pendingWithdrawals },
-      { key: 'deposit-requests', href: '/admin/deposit-requests', label: 'Deposit Requests', icon: FileText, isSubItem: true, badgeCount: pendingDeposits },
+      { key: 'withdrawal-requests', href: '/admin/withdrawal-requests', label: 'Withdrawal Requests', icon: ArrowDown, isSubItem: true, badgeCount: pendingWithdrawals },
+      { key: 'deposit-requests', href: '/admin/deposit-requests', label: 'Deposit Requests', icon: ArrowUp, isSubItem: true, badgeCount: pendingDeposits },
       { key: 'update-open', href: '/admin/update-result-open', label: 'Update Result (Open)', icon: CheckCircle, className: "text-green-600" },
       { key: 'update-close', href: '/admin/update-result-close', label: 'Update Result (Close)', icon: XCircle, className: "text-red-600" },
       { key: 'send-notification', href: '/admin/send-notification', label: 'Send Notification', icon: Send },
@@ -168,10 +158,10 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
     const contactSettingsLink = adminNavLinks.find(l => l.key === 'contact-settings');
     const settingsLink = adminNavLinks.find(l => l.key === 'settings');
 
+    const totalRequests = pendingDeposits + pendingWithdrawals;
+
     const renderLink = (link: any) => {
       let badgeCount = link.badgeCount;
-      if (link.key === 'withdrawal-requests') badgeCount = pendingWithdrawals;
-      if (link.key === 'deposit-requests') badgeCount = pendingDeposits;
 
       const navLink = (
             <NavLink 
@@ -197,11 +187,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
             <div className="p-4 bg-gradient-to-r from-yellow-400 via-orange-400 to-orange-500 text-white rounded-b-2xl shadow-lg sticky top-0 z-20">
                 <div className="flex items-center gap-3">
                     <Avatar className="h-14 w-14 border-2 border-white bg-transparent overflow-hidden">
-                        <svg 
-                            viewBox="0 0 508 508" 
-                            className="h-full w-full"
-                            xmlns="http://www.w3.org/2000/svg"
-                        >
+                        <svg viewBox="0 0 508 508" className="h-full w-full" xmlns="http://www.w3.org/2000/svg">
                             <g id="SVGRepo_iconCarrier">
                                 <circle style={{ fill: '#ff370a' }} cx="254" cy="254" r="254"></circle>
                                 <g>
@@ -257,31 +243,47 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
                 
                 {topLinks.filter(l => ['add-game', 'manage-starline'].includes(l.key)).map(renderLink)}
 
-                <Collapsible>
+                <Collapsible defaultOpen={totalRequests > 0}>
                     <CollapsibleTrigger className="w-full">
                         <div className={cn("flex items-center gap-4 rounded-lg px-3 py-3 text-gray-700 transition-all hover:bg-gray-100 w-full")}>
                             <MessageSquare className="h-5 w-5 text-orange-500" />
                             <span className="flex-1 font-medium text-sm text-left">Customer Requests</span>
-                            {(pendingDeposits + pendingWithdrawals > 0) && <span className="ml-auto inline-block rounded-full bg-red-500 px-2 py-0.5 text-xs text-white">{pendingDeposits + pendingWithdrawals}</span>}
+                            {totalRequests > 0 && (
+                                <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-sm">
+                                    {totalRequests}
+                                </span>
+                            )}
                             <ChevronDown className="h-4 w-4 text-gray-400 transition-transform [&[data-state=open]]:rotate-180" />
                         </div>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pl-8 pr-2 py-1 space-y-1">
                         {adminNavLinks.filter(l => l.key === 'deposit-requests').map(link => {
                              const isActive = pathname === link.href;
-                             const navLink = <Link href={link.href} onClick={(e) => { e.preventDefault(); handleLinkClick(link.href)}} className={cn("flex items-center text-sm p-2 rounded-md", isActive ? "bg-gray-100 text-gray-900" : "text-gray-600 hover:bg-gray-50")}>
-                                 <span>{link.label}</span>
-                                 {pendingDeposits > 0 && <span className="ml-auto inline-block rounded-full bg-red-500 px-2 py-0.5 text-xs text-white">{pendingDeposits}</span>}
-                             </Link>
+                             const navLink = (
+                                <Link href={link.href} onClick={(e) => { e.preventDefault(); handleLinkClick(link.href)}} className={cn("flex items-center text-sm p-2 rounded-md justify-between", isActive ? "bg-gray-100 text-gray-900" : "text-gray-600 hover:bg-gray-50")}>
+                                    <span>{link.label}</span>
+                                    {pendingDeposits > 0 && (
+                                        <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                                            {pendingDeposits}
+                                        </span>
+                                    )}
+                                </Link>
+                             );
                             if (isSheet) return <SheetClose asChild key={link.key}>{navLink}</SheetClose>;
                             return <div key={link.key}>{navLink}</div>;
                         })}
                         {adminNavLinks.filter(l => l.key === 'withdrawal-requests').map(link => {
                              const isActive = pathname === link.href;
-                             const navLink = <Link href={link.href} onClick={(e) => { e.preventDefault(); handleLinkClick(link.href)}} className={cn("flex items-center text-sm p-2 rounded-md", isActive ? "bg-gray-100 text-gray-900" : "text-gray-600 hover:bg-gray-50")}>
-                                 <span>{link.label}</span>
-                                 {pendingWithdrawals > 0 && <span className="ml-auto inline-block rounded-full bg-red-500 px-2 py-0.5 text-xs text-white">{pendingWithdrawals}</span>}
-                              </Link>
+                             const navLink = (
+                                <Link href={link.href} onClick={(e) => { e.preventDefault(); handleLinkClick(link.href)}} className={cn("flex items-center text-sm p-2 rounded-md justify-between", isActive ? "bg-gray-100 text-gray-900" : "text-gray-600 hover:bg-gray-50")}>
+                                    <span>{link.label}</span>
+                                    {pendingWithdrawals > 0 && (
+                                        <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                                            {pendingWithdrawals}
+                                        </span>
+                                    )}
+                                </Link>
+                             );
                              if (isSheet) return <SheetClose asChild key={link.key}>{navLink}</SheetClose>;
                              return <div key={link.key}>{navLink}</div>;
                         })}
