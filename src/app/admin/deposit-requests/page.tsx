@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, TrendingUp } from 'lucide-react';
+import { Trash2, TrendingUp, CheckCircle2, XCircle } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { logTransaction } from '@/lib/transactions';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -46,7 +46,6 @@ export default function DepositRequestsPage() {
   const [isRejectingAll, setIsRejectingAll] = useState(false);
   const [todaysApprovedAmount, setTodaysApprovedAmount] = useState(0);
   const { toast } = useToast();
-  const [processingStatus, setProcessingStatus] = useState<{[key: string]: 'approved' | 'rejected'}>({});
   
   useEffect(() => {
     setLoading(true);
@@ -92,7 +91,7 @@ export default function DepositRequestsPage() {
   }, [searchTerm, itemsPerPage]);
 
   const handleDepositRequest = (request: Request, status: 'approved' | 'rejected') => {
-    // Optimistically remove from list immediately for instant UI
+    // Optimistically remove from list immediately for instant UI after confirmation
     setRequests(prev => prev.filter(r => r.id !== request.id));
 
     const requestDocRef = doc(db, 'deposits', request.id);
@@ -366,12 +365,45 @@ export default function DepositRequestsPage() {
                                         <TableCell>{request.transactionId}</TableCell>
                                         <TableCell className="text-center">
                                             <div className="flex gap-2 justify-center">
-                                                <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleDepositRequest(request, 'approved')}>
-                                                    Approve
-                                                </Button>
-                                                <Button size="sm" variant="destructive" onClick={() => handleDepositRequest(request, 'rejected')}>
-                                                    Reject
-                                                </Button>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                                                            Approve
+                                                        </Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Approve Request?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                Add ₹{request.amount} to {request.displayName}'s wallet? Points will be added immediately.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDepositRequest(request, 'approved')} className="bg-green-600 hover:bg-green-700">Confirm Approve</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button size="sm" variant="destructive">
+                                                            Reject
+                                                        </Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Reject Request?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                Are you sure you want to reject the request for ₹{request.amount} from {request.displayName}?
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDepositRequest(request, 'rejected')} className="bg-destructive hover:bg-destructive/90">Confirm Reject</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -388,4 +420,3 @@ export default function DepositRequestsPage() {
     </main>
   );
 }
-
