@@ -145,6 +145,10 @@
     "/app-stats/dashboard": {
       "schema": { "type": "object" },
       "description": "Aggregated app statistics"
+    },
+    "/fcmTokens/{userId}": {
+      "schema": { "type": "object" },
+      "description": "Push notification tokens"
     }
   }
 }
