@@ -2,13 +2,13 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { collection, query, DocumentData, orderBy, Timestamp, onSnapshot, getDocs, where } from 'firebase/firestore';
+import { collection, query, DocumentData, orderBy, Timestamp, onSnapshot, getDocs, where, runTransaction, doc, increment, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader } from '@/components/loader';
 import { Badge } from '@/components/ui/badge';
-import { Search, Download, Calendar as CalendarIcon, ArrowUpCircle } from 'lucide-react';
+import { Search, Download, Calendar as CalendarIcon, ArrowUpCircle, RotateCcw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import jsPDF from 'jspdf';
@@ -19,6 +19,10 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { logTransaction } from '@/lib/transactions';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 interface Transaction extends DocumentData {
     id: string;
@@ -47,6 +51,7 @@ export default function AdminDepositHistoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [fromDate, setFromDate] = useState<Date | undefined>();
   const [toDate, setToDate] = useState<Date | undefined>();
+  const [isReverting, setIsReverting] = useState<string | null>(null);
   const { toast } = useToast();
   
   useEffect(() => {
@@ -65,7 +70,6 @@ export default function AdminDepositHistoryPage() {
     }
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        // Exclude manual admin entries right at the source if possible, or here
         const data = snapshot.docs
             .map(doc => ({ ...doc.data(), id: doc.id } as Transaction))
             .filter(t => t.paymentMethod !== 'Manual (Admin)');
@@ -74,12 +78,15 @@ export default function AdminDepositHistoryPage() {
         setLoading(false);
     }, (error) => {
         console.error("Error fetching deposits:", error);
-        toast({ variant: "destructive", title: "Error", description: "Failed to fetch deposit history." });
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: 'deposits',
+            operation: 'list'
+        }));
         setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [fromDate, toDate, toast]);
+  }, [fromDate, toDate]);
 
   const filteredTransactions = useMemo(() => {
     if (!searchTerm.trim()) {
@@ -97,7 +104,6 @@ export default function AdminDepositHistoryPage() {
     return filteredTransactions.reduce(
       (acc, transaction) => {
         if (transaction.status === 'approved') {
-          // Robust numeric conversion to prevent string concatenation
           const amt = Number(transaction.amount || 0);
           return acc + (isNaN(amt) ? 0 : amt);
         }
@@ -116,6 +122,93 @@ export default function AdminDepositHistoryPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, fromDate, toDate]);
+
+  const handleRevertDeposit = async (request: Transaction) => {
+    setIsReverting(request.id);
+    
+    const depositRef = doc(db, 'deposits', request.id);
+    const userRef = doc(db, 'users', request.userId);
+    const settingsRef = doc(db, 'settings', 'app-settings');
+    const statsRef = doc(db, 'app-stats', 'dashboard');
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const depositDoc = await transaction.get(depositRef);
+            if (!depositDoc.exists() || depositDoc.data().status !== 'approved') {
+                throw new Error("Only approved deposits can be reverted.");
+            }
+
+            const userDoc = await transaction.get(userRef);
+            if (!userDoc.exists()) throw new Error("User not found.");
+
+            const settingsDoc = await transaction.get(settingsRef);
+            const settings = settingsDoc.data() || {};
+            
+            const userData = userDoc.data();
+            const balanceBefore = Number(userData.balance || 0);
+            
+            // Re-calculate bonus amount that was likely given
+            let bonusAmount = 0;
+            if (userData.depositBonusEnabled === true && userData.depositBonusPercentage > 0) {
+                bonusAmount = (Number(request.amount) * Number(userData.depositBonusPercentage)) / 100;
+            } else {
+                const bonusSettings = settings?.bonus || { enabled: false, percentage: 0 };
+                if (bonusSettings.enabled && bonusSettings.percentage > 0) {
+                    bonusAmount = (Number(request.amount) * bonusSettings.percentage) / 100;
+                }
+            }
+
+            const totalToDeduct = Number(request.amount);
+            const balanceAfter = balanceBefore - totalToDeduct;
+
+            // 1. Update User Balance (Deduct Points & Bonus)
+            transaction.update(userRef, {
+                balance: increment(-totalToDeduct),
+                bonusBalance: increment(-bonusAmount)
+            });
+
+            // 2. Update Global Stats
+            transaction.update(statsRef, {
+                totalBalance: increment(-totalToDeduct)
+            });
+
+            // 3. Mark Deposit as Rejected
+            transaction.update(depositRef, { 
+                status: 'rejected',
+                revertedAt: serverTimestamp(),
+                revertedBy: 'admin'
+            });
+
+            // 4. Log Reversion Transaction
+            await logTransaction({
+                userId: request.userId,
+                userName: request.displayName,
+                amount: -totalToDeduct,
+                type: 'deposit_rejected',
+                description: `Approval reverted for Deposit of ₹${request.amount}. Points & Bonus ₹${bonusAmount} deducted.`,
+                balanceBefore,
+                balanceAfter,
+                relatedId: request.id,
+            }, transaction);
+        });
+
+        toast({
+            title: '✅ Reverted Successfully',
+            description: `₹${request.amount} has been deducted from ${request.displayName}'s wallet.`,
+            className: 'bg-orange-600 text-white'
+        });
+
+    } catch (error: any) {
+        console.error("Revert Error:", error);
+        toast({
+            title: '❌ Error',
+            description: error.message || 'Could not revert deposit.',
+            variant: 'destructive'
+        });
+    } finally {
+        setIsReverting(null);
+    }
+  };
 
   const formatDate = (timestamp: Timestamp) => {
     if (!timestamp) return 'N/A';
@@ -245,6 +338,7 @@ export default function AdminDepositHistoryPage() {
                                 <TableHead>Amount</TableHead>
                                 <TableHead>Method</TableHead>
                                 <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -257,6 +351,37 @@ export default function AdminDepositHistoryPage() {
                                     <TableCell>{t.paymentMethod}</TableCell>
                                     <TableCell>
                                         <Badge variant={getStatusBadgeVariant(t.status)} className={t.status === 'approved' ? 'bg-green-500 text-white' : t.status === 'rejected' ? 'bg-red-500 text-white' : ''}>{t.status}</Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        {t.status === 'approved' && (
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 gap-1 rounded-lg">
+                                                        <RotateCcw className="h-3 w-3" />
+                                                        Revert
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent className="max-w-[400px] rounded-2xl">
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Revert Approval?</AlertDialogTitle>
+                                                        <AlertDialogDescription className="text-xs space-y-2">
+                                                            <p>This will deduct **₹{t.amount}** and any associated bonus from **{t.displayName}**'s account.</p>
+                                                            <p className="font-bold text-red-600">यह कार्यवाही यूजर के बैलेंस से पैसे काट लेगी। क्या आप सुनिश्चित हैं?</p>
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                                                        <AlertDialogCancel className="rounded-xl flex-1">Keep Approved</AlertDialogCancel>
+                                                        <AlertDialogAction 
+                                                            onClick={() => handleRevertDeposit(t)} 
+                                                            className="rounded-xl flex-1 bg-red-600 hover:bg-red-700 text-white"
+                                                            disabled={isReverting === t.id}
+                                                        >
+                                                            {isReverting === t.id ? <Loader className="h-4 w-4" /> : 'Yes, Revert & Deduct'}
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        )}
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -271,3 +396,4 @@ export default function AdminDepositHistoryPage() {
       </div>
   );
 }
+
