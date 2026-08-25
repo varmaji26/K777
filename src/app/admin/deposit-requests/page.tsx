@@ -100,11 +100,14 @@ export default function DepositRequestsPage() {
     setProcessingStatus(prev => ({...prev, [request.id]: status}));
 
     try {
+        // Reads that involve collections or queries MUST happen outside the transaction
+        // if they are complex, but for single doc reads within transaction, the order matters.
         const transQuery = query(collection(db, 'transactions'), where('relatedId', '==', request.id));
         const transSnapshot = await getDocs(transQuery);
         const transDocRef = transSnapshot.docs.length > 0 ? transSnapshot.docs[0].ref : null;
 
         await runTransaction(db, async (transaction) => {
+            // --- ALL READS FIRST ---
             const requestDoc = await transaction.get(requestDocRef);
             if (!requestDoc.exists() || requestDoc.data().status !== 'pending') {
               throw new Error("This request has already been processed.");
@@ -112,83 +115,86 @@ export default function DepositRequestsPage() {
             
             const userDoc = await transaction.get(userDocRef);
             const settingsDoc = await transaction.get(settingsDocRef);
-            const settings = settingsDoc.data() || {};
+            const statsDoc = await transaction.get(statsDocRef);
 
-            if (userDoc.exists()) {
-                const userData = userDoc.data();
+            const userData = userDoc.exists() ? userDoc.data() : null;
+            const settings = settingsDoc.data() || {};
+            
+            // Nested Read for Referrer if applicable
+            let referrerDoc = null;
+            if (status === 'approved' && userData?.referredBy && !userData.hasDeposited) {
+                const referrerDocRef = doc(db, 'users', userData.referredBy);
+                referrerDoc = await transaction.get(referrerDocRef);
+            }
+
+            // --- ALL WRITES AFTER ALL READS ---
+            if (userData) {
                 const balanceBefore = Number(userData.balance || 0);
                 let balanceAfter = balanceBefore;
 
                 if (status === 'approved') {
-                  let bonusAmount = 0;
+                    let bonusAmount = 0;
 
-                  if (userData.depositBonusEnabled === true && userData.depositBonusPercentage > 0) {
-                      bonusAmount = (Number(request.amount) * Number(userData.depositBonusPercentage)) / 100;
-                  } 
-                  else {
-                      const bonusSettings = settings?.bonus || { enabled: false, percentage: 0 };
-                      if (bonusSettings.enabled && bonusSettings.percentage > 0) {
-                          bonusAmount = (Number(request.amount) * bonusSettings.percentage) / 100;
-                      }
-                  }
+                    if (userData.depositBonusEnabled === true && userData.depositBonusPercentage > 0) {
+                        bonusAmount = (Number(request.amount) * Number(userData.depositBonusPercentage)) / 100;
+                    } 
+                    else {
+                        const bonusSettings = settings?.bonus || { enabled: false, percentage: 0 };
+                        if (bonusSettings.enabled && bonusSettings.percentage > 0) {
+                            bonusAmount = (Number(request.amount) * bonusSettings.percentage) / 100;
+                        }
+                    }
 
-                  balanceAfter = balanceBefore + Number(request.amount);
+                    balanceAfter = balanceBefore + Number(request.amount);
 
-                  transaction.update(userDocRef, { 
-                      balance: increment(Number(request.amount)),
-                      bonusBalance: increment(bonusAmount),
-                      totalBonusGiven: increment(bonusAmount),
-                      hasDeposited: true
-                  });
-                  
-                  // FIX: Check if stats doc exists before updating
-                  const statsDoc = await transaction.get(statsDocRef);
-                  if (!statsDoc.exists()) {
-                    transaction.set(statsDocRef, { totalBalance: Number(request.amount), totalGames: 0 });
-                  } else {
-                    transaction.update(statsDocRef, { totalBalance: increment(Number(request.amount)) });
-                  }
-                  
-                  if (transDocRef) {
-                    transaction.update(transDocRef, { 
-                        status: 'approved',
-                        balanceAfter: balanceAfter,
-                        description: `Deposit of ₹${request.amount} approved.${bonusAmount > 0 ? ` Bonus of ₹${bonusAmount} added.` : ''}`
+                    transaction.update(userDocRef, { 
+                        balance: increment(Number(request.amount)),
+                        bonusBalance: increment(bonusAmount),
+                        totalBonusGiven: increment(bonusAmount),
+                        hasDeposited: true
                     });
-                  }
-                  
-                  const referralSettings = settings?.referralBonus || { enabled: false, referrerAmount: 0, refereeAmount: 0 };
-                  if (referralSettings.enabled && !userData.hasDeposited && userData.referredBy) {
-                      const referrerDocRef = doc(db, 'users', userData.referredBy);
-                      const referrerDoc = await transaction.get(referrerDocRef);
-
-                      if (referrerDoc.exists()) {
-                          if (referralSettings.referrerAmount > 0) {
-                            transaction.update(referrerDocRef, { bonusBalance: increment(referralSettings.referrerAmount) });
+                    
+                    if (!statsDoc.exists()) {
+                        transaction.set(statsDocRef, { totalBalance: Number(request.amount), totalGames: 0 });
+                    } else {
+                        transaction.update(statsDocRef, { totalBalance: increment(Number(request.amount)) });
+                    }
+                    
+                    if (transDocRef) {
+                        transaction.update(transDocRef, { 
+                            status: 'approved',
+                            balanceAfter: balanceAfter,
+                            description: `Deposit of ₹${request.amount} approved.${bonusAmount > 0 ? ` Bonus of ₹${bonusAmount} added.` : ''}`
+                        });
+                    }
+                    
+                    const referralSettings = settings?.referralBonus || { enabled: false, referrerAmount: 0, refereeAmount: 0 };
+                    if (referralSettings.enabled && referrerDoc?.exists()) {
+                        if (referralSettings.referrerAmount > 0) {
+                            transaction.update(referrerDoc.ref, { bonusBalance: increment(referralSettings.referrerAmount) });
                             await logTransaction({
                                 userId: userData.referredBy,
-                                userName: referrerDoc.data()?.displayName,
+                                userName: referrerDoc.data()?.displayName || referrerDoc.data()?.name,
                                 amount: referralSettings.referrerAmount,
                                 type: 'bonus',
-                                description: `Referral bonus for referring ${userData.displayName}`,
+                                description: `Referral bonus for referring ${userData.displayName || userData.name}`,
                                 balanceBefore: Number(referrerDoc.data().balance || 0),
                                 balanceAfter: Number(referrerDoc.data().balance || 0),
                             }, transaction);
-                          }
-                          if (referralSettings.refereeAmount > 0) {
-                              transaction.update(userDocRef, { bonusBalance: increment(referralSettings.refereeAmount) });
-                              await logTransaction({
-                                  userId: request.userId,
-                                  userName: userData.displayName,
-                                  amount: referralSettings.refereeAmount,
-                                  type: 'bonus',
-                                  description: 'Bonus for being referred',
-                                  balanceBefore: balanceAfter,
-                                  balanceAfter: balanceAfter,
-                              }, transaction);
-                          }
-                      }
-                  }
+                        }
+                        if (referralSettings.refereeAmount > 0) {
+                            transaction.update(userDocRef, { bonusBalance: increment(referralSettings.refereeAmount) });
+                            await logTransaction({
+                                userId: request.userId,
+                                userName: userData.displayName || userData.name,
+                                amount: referralSettings.refereeAmount,
+                                type: 'bonus',
+                                description: 'Bonus for being referred',
+                                balanceBefore: balanceAfter,
+                                balanceAfter: balanceAfter,
+                            }, transaction);
+                        }
+                    }
                 } else if (status === 'rejected' && transDocRef) {
                     transaction.delete(transDocRef);
                 }
@@ -278,7 +284,7 @@ export default function DepositRequestsPage() {
   );
 
   return (
-     <main className="container mx-auto px-4 py-8 flex-1 space-y-6">
+    <main className="container mx-auto px-4 py-8 flex-1 space-y-6">
         <Card className="bg-teal-500/10 border-teal-500/20 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
