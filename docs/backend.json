@@ -141,6 +141,10 @@
     "/withdrawals/{withdrawalId}": {
       "schema": { "type": "object" },
       "description": "Withdrawal requests"
+    },
+    "/app-stats/dashboard": {
+      "schema": { "type": "object" },
+      "description": "Aggregated app statistics"
     }
   }
 }
