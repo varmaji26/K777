@@ -73,7 +73,7 @@ const sumTransactions = (snapshot: any, targetTypes: string[]): number => {
         const data = doc.data();
         const matchesType = targetTypes.includes(data.type);
         
-        // Status can be 'approved', 'success', or undefined (for legacy/simple manual additions)
+        // Status can be 'approved', 'success', 'won', 'Given', or undefined (for legacy/simple manual additions)
         const isSuccessful = !data.status || ['approved', 'success', 'won', 'Given'].includes(data.status);
         const isExcluded = data.status === 'pending' || data.status === 'rejected' || data.status === 'cancelled' || data.status === 'reverted';
 
@@ -258,7 +258,7 @@ export default function AdminDashboardPage() {
     <div className="flex-1 space-y-6">
        <div className="grid gap-6">
         <div className="bg-gradient-to-r from-yellow-400 via-orange-400 to-orange-500 text-white p-6 rounded-lg shadow-lg">
-            <h2 className="text-3xl font-bold">Admin Dashboard</h2>
+            <h2 className="text-3xl font-bold">KALYAN 777 Admin Dashboard</h2>
             <p className="mt-1">Detailed overview of application financials and users.</p>
         </div>
 
