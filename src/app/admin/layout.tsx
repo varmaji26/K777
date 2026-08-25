@@ -139,25 +139,32 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
     };
 
     const handleLinkClick = (href: string, key?: string) => {
-        if (href.startsWith('#')) return;
+        const now = Date.now().toString();
+        const nowInt = parseInt(now, 10);
 
         // Clear badges logic
         if (key === 'bid-history') {
-            localStorage.setItem('lastViewedBidsTimestamp', Date.now().toString());
+            localStorage.setItem('lastViewedBidsTimestamp', now);
             setNewBidsCount(0);
+            setLastViewed(prev => ({ ...prev, bids: nowInt }));
         } else if (key === 'win-history') {
-            localStorage.setItem('lastViewedWinsTimestamp', Date.now().toString());
+            localStorage.setItem('lastViewedWinsTimestamp', now);
             setNewWinsCount(0);
+            setLastViewed(prev => ({ ...prev, wins: nowInt }));
         } else if (key === 'users') {
-            localStorage.setItem('lastViewedUsersTimestamp', Date.now().toString());
+            localStorage.setItem('lastViewedUsersTimestamp', now);
             setNewUsersCount(0);
+            setLastViewed(prev => ({ ...prev, users: nowInt }));
         } else if (key === 'customer-requests') {
-            localStorage.setItem('lastViewedRequestsTimestamp', Date.now().toString());
+            localStorage.setItem('lastViewedRequestsTimestamp', now);
             setPendingDeposits(0);
             setPendingWithdrawals(0);
+            setLastViewed(prev => ({ ...prev, requests: nowInt }));
         }
 
-        router.push(href);
+        if (!href.startsWith('#')) {
+            router.push(href);
+        }
         if (closeSheet) closeSheet();
     };
     
@@ -262,7 +269,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
                 {topLinks.filter(l => ['dashboard', 'users'].includes(l.key)).map(renderLink)}
 
                 <Collapsible>
-                    <CollapsibleTrigger className="w-full text-left">
+                    <CollapsibleTrigger className="w-full text-left" onClick={() => handleLinkClick('#')}>
                         <div className={cn("flex items-center gap-4 rounded-lg px-3 py-3 text-gray-700 transition-all hover:bg-gray-100 w-full")}>
                             <Eye className="h-5 w-5 text-orange-500" />
                             <span className="flex-1 font-medium text-sm text-left">View All Load</span>
@@ -323,7 +330,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
                 {historyLinks.map(renderLink)}
                 
                 <Collapsible>
-                    <CollapsibleTrigger className="w-full">
+                    <CollapsibleTrigger className="w-full" onClick={() => handleLinkClick('#')}>
                         <div className={cn("flex items-center gap-4 rounded-lg px-3 py-3 text-gray-700 transition-all hover:bg-gray-100 w-full")}>
                             <FileSpreadsheet className="h-5 w-5 text-orange-500" />
                             <span className="flex-1 font-medium text-sm text-left">Payment History</span>
