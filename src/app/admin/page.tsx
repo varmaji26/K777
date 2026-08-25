@@ -61,18 +61,26 @@ interface MonthlyStats {
     monthlyNetBalance: number;
 }
 
-// source of truth helper for financial stats
-const sumTransactionType = (snapshot: any, type: string): number => {
+/**
+ * Universal helper to sum amounts based on transaction types and success statuses.
+ * Includes Deposits, Welcome Bonus, and Referral Bonus as inflow.
+ */
+const sumTransactions = (snapshot: any, targetTypes: string[]): number => {
     let total = 0;
     if (!snapshot || !snapshot.docs) return 0;
     
     snapshot.docs.forEach((doc: any) => {
         const data = doc.data();
-        // Check if the transaction matches the type and is successful
-        if (data.type === type && (data.status === 'approved' || data.status === 'success' || data.type === 'welcome_bonus' || data.type === 'referral_bonus')) {
-            const val = Math.abs(parseFloat(data.amount));
+        const matchesType = targetTypes.includes(data.type);
+        
+        // Status can be 'approved', 'success', or undefined (for legacy/simple manual additions)
+        const isSuccessful = !data.status || ['approved', 'success', 'won', 'Given'].includes(data.status);
+        const isExcluded = data.status === 'pending' || data.status === 'rejected' || data.status === 'cancelled' || data.status === 'reverted';
+
+        if (matchesType && !isExcluded) {
+            const val = parseFloat(data.amount);
             if (!isNaN(val)) {
-                total += val;
+                total += Math.abs(val);
             }
         }
     });
@@ -93,6 +101,7 @@ export default function AdminDashboardPage() {
     const totalUsers = useMemo(() => users.filter(u => !u.isAdmin).length, [users]);
     const totalGames = useMemo(() => games.length, [games]);
     
+    // Total Liability: Money that belongs to users (Real + Bonus)
     const totalUsersWalletBalance = useMemo(() => {
         return users.reduce((sum, u) => {
             if (u.isAdmin) return sum;
@@ -118,39 +127,45 @@ export default function AdminDashboardPage() {
             setLoading(false);
         });
 
-        // Date Calculations (Local start of day)
+        // --- CALENDAR LOGIC (LOCAL TIME) ---
         const now = new Date();
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        
         const startOfYesterday = new Date(startOfToday);
         startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+        const endOfYesterday = new Date(startOfYesterday);
+        endOfYesterday.setHours(23, 59, 59, 999);
         
         const todayTs = Timestamp.fromDate(startOfToday);
+        const endOfTodayTs = Timestamp.fromDate(endOfToday);
         const yesterdayTs = Timestamp.fromDate(startOfYesterday);
-        const endOfTodayTs = Timestamp.fromDate(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+        const endOfYesterdayTs = Timestamp.fromDate(endOfYesterday);
 
-        // Listeners for Today's and Yesterday's Transactions (Financial Truth)
-        const todayTransQuery = query(collection(db, "transactions"), where("createdAt", ">=", todayTs), where("createdAt", "<=", endOfTodayTs));
-        const yesterdayTransQuery = query(collection(db, "transactions"), where("createdAt", ">=", yesterdayTs), where("createdAt", "<", todayTs));
+        // --- REAL-TIME LISTENERS ---
         
-        // Listeners for Today's Bids
-        const todayBidsQuery = query(collection(db, "bids"), where("createdAt", ">=", todayTs), where("createdAt", "<=", endOfTodayTs));
-
+        // 1. Today's Transactions
+        const todayTransQuery = query(collection(db, "transactions"), where("createdAt", ">=", todayTs), where("createdAt", "<=", endOfTodayTs));
         const unsubTodayTrans = onSnapshot(todayTransQuery, (snap) => {
             setDailyStats(s => ({ 
                 ...s, 
-                todaysDeposits: sumTransactionType(snap, 'deposit'),
-                todaysWithdrawals: sumTransactionType(snap, 'withdrawal') + sumTransactionType(snap, 'withdrawal_approved')
+                todaysDeposits: sumTransactions(snap, ['deposit', 'welcome_bonus', 'referral_bonus']),
+                todaysWithdrawals: sumTransactions(snap, ['withdrawal', 'withdrawal_approved'])
             }));
         });
 
+        // 2. Yesterday's Transactions
+        const yesterdayTransQuery = query(collection(db, "transactions"), where("createdAt", ">=", yesterdayTs), where("createdAt", "<=", endOfYesterdayTs));
         const unsubYesterdayTrans = onSnapshot(yesterdayTransQuery, (snap) => {
             setDailyStats(s => ({ 
                 ...s, 
-                yesterdaysDeposits: sumTransactionType(snap, 'deposit'),
-                yesterdaysWithdrawals: sumTransactionType(snap, 'withdrawal') + sumTransactionType(snap, 'withdrawal_approved')
+                yesterdaysDeposits: sumTransactions(snap, ['deposit', 'welcome_bonus', 'referral_bonus']),
+                yesterdaysWithdrawals: sumTransactions(snap, ['withdrawal', 'withdrawal_approved'])
             }));
         });
 
+        // 3. Today's Bids (Bidding & Winning)
+        const todayBidsQuery = query(collection(db, "bids"), where("createdAt", ">=", todayTs), where("createdAt", "<=", endOfTodayTs));
         const unsubBids = onSnapshot(todayBidsQuery, (bidsSnap) => {
             let bidding = 0;
             let winning = 0;
@@ -184,18 +199,18 @@ export default function AdminDashboardPage() {
         if (!user?.isAdmin || !auth.currentUser) return;
 
         const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
         
         const startOfMonthTs = Timestamp.fromDate(startOfMonth);
         const endOfMonthTs = Timestamp.fromDate(endOfMonth);
         
         const monthlyTransQuery = query(collection(db, "transactions"), where("createdAt", ">=", startOfMonthTs), where("createdAt", "<=", endOfMonthTs));
-        const bidsQuery = query(collection(db, "bids"), where("createdAt", ">=", startOfMonthTs), where("createdAt", "<=", endOfMonthTs));
+        const monthlyBidsQuery = query(collection(db, "bids"), where("createdAt", ">=", startOfMonthTs), where("createdAt", "<=", endOfMonthTs));
         
         const unsubMonthlyTrans = onSnapshot(monthlyTransQuery, (snap) => {
-            const dep = sumTransactionType(snap, 'deposit');
-            const wit = sumTransactionType(snap, 'withdrawal') + sumTransactionType(snap, 'withdrawal_approved');
+            const dep = sumTransactions(snap, ['deposit', 'welcome_bonus', 'referral_bonus']);
+            const wit = sumTransactions(snap, ['withdrawal', 'withdrawal_approved']);
             setMonthlyStats(s => ({ 
                 ...s, 
                 totalDeposit: dep, 
@@ -204,7 +219,7 @@ export default function AdminDashboardPage() {
             }));
         });
 
-        const unsubMonthlyBids = onSnapshot(bidsQuery, (snap) => {
+        const unsubMonthlyBids = onSnapshot(monthlyBidsQuery, (snap) => {
             let mBidding = 0;
             let mWinning = 0;
 
@@ -243,8 +258,8 @@ export default function AdminDashboardPage() {
     <div className="flex-1 space-y-6">
        <div className="grid gap-6">
         <div className="bg-gradient-to-r from-yellow-400 via-orange-400 to-orange-500 text-white p-6 rounded-lg shadow-lg">
-            <h2 className="text-3xl font-bold">Welcome to your Admin Panel!</h2>
-            <p className="mt-1">Here's a detailed overview of your application's status and performance.</p>
+            <h2 className="text-3xl font-bold">Admin Dashboard</h2>
+            <p className="mt-1">Detailed overview of application financials and users.</p>
         </div>
 
         <div>
@@ -252,7 +267,7 @@ export default function AdminDashboardPage() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <StatCard title="Total Users" value={totalUsers.toString()} icon={Users} color="#8b5cf6" />
                 <StatCard title="Total Games" value={totalGames.toString()} icon={Gamepad2} color="#ec4899" />
-                <StatCard title="Total User Wallets (Liability)" value={`₹${totalUsersWalletBalance.toLocaleString('en-IN')}`} icon={WalletCards} color="#3b82f6" />
+                <StatCard title="Users Wallet Liability" value={`₹${totalUsersWalletBalance.toLocaleString('en-IN')}`} icon={WalletCards} color="#3b82f6" />
                 <StatCard 
                     title="Monthly Net Balance (Dep - Wit)" 
                     value={`₹${(Number(monthlyStats.monthlyNetBalance) || 0).toLocaleString('en-IN')}`} 
