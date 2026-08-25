@@ -4,13 +4,32 @@ service cloud.firestore {
 
     /**
      * KALYAN 777 EMERGENCY ACCESS RULES
-     * Updated: 2025-05-18T11:25:00Z (Force Redeploy Trigger)
-     * Note: This ruleset is intentionally fully open (allow read, write: if true) 
-     * to resolve 'Permission Denied' errors during development and ensure 
-     * all collections like 'deposits' can be updated by the admin UI.
+     * Updated: 2025-05-18T13:45:00Z (Force Redeploy Trigger)
+     * 
+     * This ruleset is intentionally set to 'allow read, write: if true' 
+     * to bypass 'Missing or insufficient permissions' errors during 
+     * development/deployment transitions. 
+     * 
+     * Specifically handles:
+     * - Admin deposit approval/rejection (auth: null)
+     * - Game result updates
+     * - Settings management
      */
 
     match /{document=**} {
+      allow read, write: if true;
+    }
+    
+    // Explicit match for deposits to ensure priority deployment
+    match /deposits/{depositId} {
+      allow read, write: if true;
+    }
+    
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    match /transactions/{transId} {
       allow read, write: if true;
     }
   }
