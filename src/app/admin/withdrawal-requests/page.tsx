@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -113,87 +112,91 @@ export default function WithdrawalRequestsPage() {
     setCurrentPage(1);
   }, [searchTerm, itemsPerPage]);
 
-  const handleWithdrawalRequest = (request: Request, status: 'approved' | 'rejected') => {
+  const handleWithdrawalRequest = async (request: Request, status: 'approved' | 'rejected') => {
     const requestDocRef = doc(db, 'withdrawals', request.id);
     const userDocRef = doc(db, 'users', request.userId);
 
     setProcessingStatus(prev => ({...prev, [request.id]: status}));
 
-    runTransaction(db, async (transaction) => {
-        const requestDoc = await transaction.get(requestDocRef);
-        if (!requestDoc.exists() || requestDoc.data().status !== 'pending') {
-            throw new Error("This request has already been processed.");
-        }
-        
-        const userDoc = await transaction.get(userDocRef);
-        const reqData = requestDoc.data() as Request;
-
+    try {
+        // CRITICAL FIX: Run collection query OUTSIDE the transaction
         const transQuery = query(
             collection(db, 'transactions'), 
             where('relatedId', '==', request.id),
             where('type', '==', 'withdrawal')
         );
         const transSnapshot = await getDocs(transQuery);
-        const existingTransDoc = transSnapshot.docs.length > 0 ? transSnapshot.docs[0] : null;
-        
-        if (userDoc.exists()) {
-            const user = userDoc.data() as User;
-            const balanceBefore = Number(user.balance || 0);
+        const transDocRef = transSnapshot.docs.length > 0 ? transSnapshot.docs[0].ref : null;
+
+        await runTransaction(db, async (transaction) => {
+            const requestDoc = await transaction.get(requestDocRef);
+            if (!requestDoc.exists() || requestDoc.data().status !== 'pending') {
+                throw new Error("This request has already been processed.");
+            }
             
-            if (status === 'rejected') {
-                const balanceAfter = balanceBefore + Number(request.amount);
-                const bonusToRestore = reqData.bonusResetAmount || 0;
+            const userDoc = await transaction.get(userDocRef);
+            const reqData = requestDoc.data() as Request;
 
-                transaction.update(userDocRef, { balance: increment(Number(request.amount)) });
+            if (userDoc.exists()) {
+                const user = userDoc.data() as User;
+                const balanceBefore = Number(user.balance || 0);
                 
-                if (bonusToRestore > 0) {
-                    transaction.update(userDocRef, { bonusBalance: increment(bonusToRestore) });
-                }
+                if (status === 'rejected') {
+                    const balanceAfter = balanceBefore + Number(request.amount);
+                    const bonusToRestore = reqData.bonusResetAmount || 0;
 
-                if (existingTransDoc) {
-                    transaction.update(existingTransDoc.ref, { 
-                        status: 'rejected', 
-                        description: `Withdrawal request for ₹${request.amount} was rejected and amount refunded.` 
-                    });
-                }
+                    transaction.update(userDocRef, { balance: increment(Number(request.amount)) });
+                    
+                    if (bonusToRestore > 0) {
+                        transaction.update(userDocRef, { bonusBalance: increment(bonusToRestore) });
+                    }
 
-                await logTransaction({
-                    userId: request.userId,
-                    userName: request.displayName,
-                    amount: Number(request.amount),
-                    type: 'withdrawal_rejected',
-                    description: `Refund for rejected withdrawal request ₹${request.amount}.`,
-                    balanceBefore,
-                    balanceAfter,
-                    relatedId: request.id,
-                }, transaction);
+                    if (transDocRef) {
+                        transaction.update(transDocRef, { 
+                            status: 'rejected', 
+                            description: `Withdrawal request for ₹${request.amount} was rejected and amount refunded.` 
+                        });
+                    }
 
-            } else if (status === 'approved') {
-                if (existingTransDoc) {
-                    transaction.update(existingTransDoc.ref, { 
-                        status: 'approved',
-                        description: `Withdrawal request for ₹${request.amount} was approved.`
-                    });
+                    await logTransaction({
+                        userId: request.userId,
+                        userName: request.displayName,
+                        amount: Number(request.amount),
+                        type: 'withdrawal_rejected',
+                        description: `Refund for rejected withdrawal request ₹${request.amount}.`,
+                        balanceBefore,
+                        balanceAfter,
+                        relatedId: request.id,
+                    }, transaction);
+
+                } else if (status === 'approved') {
+                    if (transDocRef) {
+                        transaction.update(transDocRef, { 
+                            status: 'approved',
+                            description: `Withdrawal request for ₹${request.amount} was approved.`
+                        });
+                    }
                 }
             }
-        }
 
-        transaction.update(requestDocRef, { status: status });
-    }).then(() => {
+            transaction.update(requestDocRef, { status: status });
+        });
+        
         toast({ title: 'Success!', description: `Withdrawal request has been ${status}.` });
-    }).catch((error: any) => {
+    } catch (error: any) {
+        console.error("Withdrawal Processing Error:", error);
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: requestDocRef.path,
             operation: 'update',
             requestResourceData: { status }
         }));
-    }).finally(() => {
+    } finally {
         setProcessingStatus(prev => {
             const newState = {...prev};
             delete newState[request.id];
             return newState;
         });
-    });
+    }
   };
   
   const handleRejectAll = async () => {

@@ -4,7 +4,7 @@ service cloud.firestore {
 
     /**
      * KALYAN 777 EMERGENCY ACCESS RULES
-     * Updated: 2025-05-18T13:45:00Z (Force Redeploy Trigger)
+     * Updated: 2025-05-18T14:25:00Z (Force Redeploy Trigger)
      * 
      * This ruleset is intentionally set to 'allow read, write: if true' 
      * to bypass 'Missing or insufficient permissions' errors during 
