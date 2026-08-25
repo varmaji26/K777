@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { collection, query, DocumentData, orderBy, Timestamp, onSnapshot, getDocs, where, runTransaction, doc, increment, getDoc } from 'firebase/firestore';
+import { collection, query, DocumentData, orderBy, Timestamp, onSnapshot, getDocs, where, runTransaction, doc, increment, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -364,9 +364,11 @@ export default function AdminDepositHistoryPage() {
                                                 <AlertDialogContent className="max-w-[400px] rounded-2xl">
                                                     <AlertDialogHeader>
                                                         <AlertDialogTitle>Revert Approval?</AlertDialogTitle>
-                                                        <AlertDialogDescription className="text-xs space-y-2">
-                                                            <p>This will deduct **₹{t.amount}** and any associated bonus from **{t.displayName}**'s account.</p>
-                                                            <p className="font-bold text-red-600">यह कार्यवाही यूजर के बैलेंस से पैसे काट लेगी। क्या आप सुनिश्चित हैं?</p>
+                                                        <AlertDialogDescription asChild>
+                                                            <div className="text-xs space-y-2 text-muted-foreground">
+                                                                <p>This will deduct <strong>₹{t.amount}</strong> and any associated bonus from <strong>{t.displayName}</strong>'s account.</p>
+                                                                <p className="font-bold text-red-600">यह कार्यवाही यूजर के बैलेंस से पैसे काट लेगी। क्या आप सुनिश्चित हैं?</p>
+                                                            </div>
                                                         </AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter className="flex-col sm:flex-row gap-2">
@@ -396,4 +398,3 @@ export default function AdminDepositHistoryPage() {
       </div>
   );
 }
-
