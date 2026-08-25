@@ -3,9 +3,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * KALYAN 777 GLOBAL ACCESSIBLE RULES
-     * Updated: 2025-05-18T10:45:00Z (Force Redeploy Cache Buster)
-     * Note: Fully open for prototype stability to prevent all 'Permission Denied' errors.
+     * KALYAN 777 EMERGENCY ACCESS RULES
+     * Updated: 2025-05-18T11:25:00Z (Force Redeploy Trigger)
+     * Note: This ruleset is intentionally fully open (allow read, write: if true) 
+     * to resolve 'Permission Denied' errors during development and ensure 
+     * all collections like 'deposits' can be updated by the admin UI.
      */
 
     match /{document=**} {
