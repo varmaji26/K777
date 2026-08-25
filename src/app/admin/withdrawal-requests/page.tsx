@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -115,11 +116,11 @@ export default function WithdrawalRequestsPage() {
   const handleWithdrawalRequest = async (request: Request, status: 'approved' | 'rejected') => {
     const requestDocRef = doc(db, 'withdrawals', request.id);
     const userDocRef = doc(db, 'users', request.userId);
+    const statsDocRef = doc(db, 'app-stats', 'dashboard');
 
     setProcessingStatus(prev => ({...prev, [request.id]: status}));
 
     try {
-        // CRITICAL FIX: Run collection query OUTSIDE the transaction
         const transQuery = query(
             collection(db, 'transactions'), 
             where('relatedId', '==', request.id),
@@ -135,6 +136,7 @@ export default function WithdrawalRequestsPage() {
             }
             
             const userDoc = await transaction.get(userDocRef);
+            const statsDoc = await transaction.get(statsDocRef);
             const reqData = requestDoc.data() as Request;
 
             if (userDoc.exists()) {
@@ -170,6 +172,11 @@ export default function WithdrawalRequestsPage() {
                     }, transaction);
 
                 } else if (status === 'approved') {
+                    // Decrement Global System Balance
+                    if (statsDoc.exists()) {
+                        transaction.update(statsDocRef, { totalBalance: increment(-Number(request.amount)) });
+                    }
+                    
                     if (transDocRef) {
                         transaction.update(transDocRef, { 
                             status: 'approved',

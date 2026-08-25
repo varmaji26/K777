@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { doc, onSnapshot, DocumentData, collection, query, where, Timestamp } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Gamepad2, ArrowUpCircle, ArrowDownCircle, TrendingUp, TrendingDown, Scale, Landmark, BarChart } from 'lucide-react';
+import { Users, Gamepad2, ArrowUpCircle, ArrowDownCircle, TrendingUp, TrendingDown, Scale, Landmark, BarChart, WalletCards } from 'lucide-react';
 import { Loader } from '@/components/loader';
 import { useAuth } from '@/hooks/use-auth';
 import { useUserStore, useGameStore } from '@/lib/store';
@@ -90,14 +90,20 @@ export default function AdminDashboardPage() {
     
     const { users } = useUserStore();
     const { games } = useGameStore();
+    
     const totalUsers = useMemo(() => users.filter(u => !u.isAdmin).length, [users]);
     const totalGames = useMemo(() => games.length, [games]);
+    
+    const totalUsersWalletBalance = useMemo(() => {
+        return users.reduce((sum, u) => {
+            if (u.isAdmin) return sum;
+            return sum + (Number(u.balance) || 0) + (Number(u.bonusBalance) || 0);
+        }, 0);
+    }, [users]);
 
     useEffect(() => {
-        // Wait for actual auth to be ready
         const fbUser = auth.currentUser;
         if (!user?.isAdmin || !fbUser) {
-          // If auth state is settled and still no admin, stop loading
           const timer = setTimeout(() => setLoading(false), 2000);
           return () => clearTimeout(timer);
         }
@@ -117,12 +123,15 @@ export default function AdminDashboardPage() {
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const startOfYesterday = new Date(startOfToday);
         startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+        
+        const todayTs = Timestamp.fromDate(startOfToday);
+        const yesterdayTs = Timestamp.fromDate(startOfYesterday);
        
-        const todayDepositsQuery = query(collection(db, "deposits"), where("createdAt", ">=", startOfToday));
-        const todayWithdrawalsQuery = query(collection(db, "withdrawals"), where("createdAt", ">=", startOfToday));
-        const yesterdayDepositsQuery = query(collection(db, "deposits"), where("createdAt", ">=", startOfYesterday), where("createdAt", "<", startOfToday));
-        const yesterdayWithdrawalsQuery = query(collection(db, "withdrawals"), where("createdAt", ">=", startOfYesterday), where("createdAt", "<", startOfToday));
-        const bidsQuery = query(collection(db, "bids"), where("createdAt", ">=", startOfToday));
+        const todayDepositsQuery = query(collection(db, "deposits"), where("createdAt", ">=", todayTs));
+        const todayWithdrawalsQuery = query(collection(db, "withdrawals"), where("createdAt", ">=", todayTs));
+        const yesterdayDepositsQuery = query(collection(db, "deposits"), where("createdAt", ">=", yesterdayTs), where("createdAt", "<", todayTs));
+        const yesterdayWithdrawalsQuery = query(collection(db, "withdrawals"), where("createdAt", ">=", yesterdayTs), where("createdAt", "<", todayTs));
+        const bidsQuery = query(collection(db, "bids"), where("createdAt", ">=", todayTs));
 
         const unsubTodayDeposits = onSnapshot(todayDepositsQuery, (snap) => {
             setDailyStats(s => ({ ...s, todaysDeposits: sumApprovedAmount(snap) }));
@@ -251,6 +260,7 @@ export default function AdminDashboardPage() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <StatCard title="Total Users" value={totalUsers.toString()} icon={Users} color="#8b5cf6" />
                 <StatCard title="Total Games" value={totalGames.toString()} icon={Gamepad2} color="#ec4899" />
+                <StatCard title="Total User Wallets (Liability)" value={`₹${totalUsersWalletBalance.toLocaleString('en-IN')}`} icon={WalletCards} color="#3b82f6" />
                 <StatCard 
                     title="Monthly Net Balance" 
                     value={`₹${(Number(monthlyStats.monthlyNetBalance) || 0).toLocaleString('en-IN')}`} 
@@ -264,7 +274,7 @@ export default function AdminDashboardPage() {
         <div>
             <h3 className="text-xl font-bold mb-4">Daily Transaction &amp; Bidding Report</h3>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <StatCard title="Today's Deposits" value={`₹${(Number(dailyStats.todaysDeposits) || 0).toLocaleString('en-IN')}`} icon={ArrowUpCircle} color="#3b82f6" />
+                <StatCard title="Today's Deposits" value={`₹${(Number(dailyStats.todaysDeposits) || 0).toLocaleString('en-IN')}`} icon={ArrowUpCircle} color="#10b981" />
                 <StatCard title="Withdrawals Given Today" value={`₹${(Number(dailyStats.todaysWithdrawals) || 0).toLocaleString('en-IN')}`} icon={ArrowDownCircle} color="#f97316" />
                 <StatCard title="Today's Bidding" value={`₹${(Number(biddingStats.todaysBidding) || 0).toLocaleString('en-IN')}`} icon={TrendingUp} color="#38bdf8" />
                 <StatCard title="Today's Winning" value={`₹${(Number(biddingStats.todaysWinning) || 0).toLocaleString('en-IN')}`} icon={TrendingDown} color="#fb7185" />
@@ -275,7 +285,7 @@ export default function AdminDashboardPage() {
                     color={biddingStats.todaysProfitLoss >= 0 ? "#4ade80" : "#f87171"}
                     textColor={biddingStats.todaysProfitLoss >= 0 ? "#4ade80" : "#f87171"}
                 />
-                <StatCard title="Yesterday's Deposits" value={`₹${(Number(dailyStats.yesterdaysDeposits) || 0).toLocaleString('en-IN')}`} icon={ArrowUpCircle} color="#10b981" />
+                <StatCard title="Yesterday's Deposits" value={`₹${(Number(dailyStats.yesterdaysDeposits) || 0).toLocaleString('en-IN')}`} icon={ArrowUpCircle} color="#059669" />
                 <StatCard title="Withdrawal Given Yesterday" value={`₹${(Number(dailyStats.yesterdaysWithdrawals) || 0).toLocaleString('en-IN')}`} icon={ArrowDownCircle} color="#ef4444" />
             </div>
         </div>
