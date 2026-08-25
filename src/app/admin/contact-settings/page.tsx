@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -13,12 +12,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Loader } from '@/components/loader';
-import { Share2, Phone, MessageSquare } from 'lucide-react';
+import { Share2, Phone, MessageSquare, Send } from 'lucide-react';
 
 const contactSettingsSchema = z.object({
   shareLink: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')),
   whatsappNumber: z.string().min(10, 'Please enter a valid phone number.'),
   supportNumber: z.string().min(10, 'Please enter a valid phone number.'),
+  telegramLink: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')),
 });
 
 type ContactSettingsFormValues = z.infer<typeof contactSettingsSchema>;
@@ -33,6 +33,7 @@ export default function ContactSettingsPage() {
       shareLink: '',
       whatsappNumber: '',
       supportNumber: '',
+      telegramLink: '',
     },
   });
 
@@ -49,6 +50,7 @@ export default function ContactSettingsPage() {
             shareLink: data.shareLink || '',
             whatsappNumber: data.whatsappNumber || '',
             supportNumber: data.supportNumber || '',
+            telegramLink: data.telegramLink || '',
           });
         }
       } catch (error) {
@@ -133,6 +135,23 @@ export default function ContactSettingsPage() {
                 />
                 <FormField
                     control={form.control}
+                    name="telegramLink"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Telegram Link</FormLabel>
+                            <FormControl>
+                                <div className="relative">
+                                    <Send className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input placeholder="https://t.me/yourchannel" {...field} value={field.value ?? ''} className="pl-10" />
+                                </div>
+                            </FormControl>
+                            <FormDescription>Your Telegram support link or channel link.</FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
                     name="supportNumber"
                     render={({ field }) => (
                         <FormItem>
@@ -159,5 +178,3 @@ export default function ContactSettingsPage() {
     </div>
   );
 }
-
-    

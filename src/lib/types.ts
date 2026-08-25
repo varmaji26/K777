@@ -155,6 +155,7 @@ export interface AppSettings {
     upiId?: string;
     shareLink?: string;
     whatsappNumber?: string;
+    telegramLink?: string;
     supportNumber?: string;
     addFundNotice?: string;
     // How to Play Video Links

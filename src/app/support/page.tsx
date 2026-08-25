@@ -1,11 +1,10 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Phone } from 'lucide-react';
+import { Phone, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Footer } from '@/components/layout/footer';
 import { doc, onSnapshot, DocumentData } from 'firebase/firestore';
@@ -36,6 +35,7 @@ const SupportCardLink: React.FC<SupportCardLinkProps> = ({ href, icon, title, de
 interface AppSettings extends DocumentData {
     whatsappNumber?: string;
     supportNumber?: string;
+    telegramLink?: string;
 }
 
 export default function SupportPage() {
@@ -57,6 +57,7 @@ export default function SupportPage() {
 
   const whatsappLink = `https://wa.me/${settings.whatsappNumber || ''}`;
   const callLink = `tel:${settings.supportNumber || ''}`;
+  const telegramLink = settings.telegramLink || '#';
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -78,6 +79,12 @@ export default function SupportPage() {
                     icon={<Image src="https://img.icons8.com/color/96/whatsapp--v1.png" alt="WhatsApp" width={28} height={28} />}
                     title="Whatsapp"
                     description={`Chat on ${settings.whatsappNumber || 'our number'}`}
+                />
+                <SupportCardLink
+                    href={telegramLink}
+                    icon={<Image src="https://img.icons8.com/color/96/telegram-app.png" alt="Telegram" width={28} height={28} />}
+                    title="Telegram"
+                    description="Join our Telegram support"
                 />
                 <SupportCardLink
                     href={callLink}
