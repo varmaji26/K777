@@ -61,16 +61,16 @@ interface MonthlyStats {
     monthlyNetBalance: number;
 }
 
-const sumApprovedAmount = (snapshot: any): number => {
+// source of truth helper for financial stats
+const sumTransactionType = (snapshot: any, type: string): number => {
     let total = 0;
     if (!snapshot || !snapshot.docs) return 0;
     
     snapshot.docs.forEach((doc: any) => {
         const data = doc.data();
-        if (data.status === 'approved' && 
-            data.paymentMethod !== 'Manual (Admin)' && 
-            data.withdrawalMethod !== 'Manual (Admin)') {
-            const val = parseFloat(data.amount);
+        // Check if the transaction matches the type and is successful
+        if (data.type === type && (data.status === 'approved' || data.status === 'success' || data.type === 'welcome_bonus' || data.type === 'referral_bonus')) {
+            const val = Math.abs(parseFloat(data.amount));
             if (!isNaN(val)) {
                 total += val;
             }
@@ -118,7 +118,7 @@ export default function AdminDashboardPage() {
             setLoading(false);
         });
 
-        // Date Calculations
+        // Date Calculations (Local start of day)
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const startOfYesterday = new Date(startOfToday);
@@ -128,29 +128,27 @@ export default function AdminDashboardPage() {
         const yesterdayTs = Timestamp.fromDate(startOfYesterday);
         const endOfTodayTs = Timestamp.fromDate(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
 
-        // Listeners for Today's and Yesterday's Deposits/Withdrawals
-        const todayDepositsQuery = query(collection(db, "deposits"), where("createdAt", ">=", todayTs), where("createdAt", "<=", endOfTodayTs));
-        const todayWithdrawalsQuery = query(collection(db, "withdrawals"), where("createdAt", ">=", todayTs), where("createdAt", "<=", endOfTodayTs));
-        const yesterdayDepositsQuery = query(collection(db, "deposits"), where("createdAt", ">=", yesterdayTs), where("createdAt", "<", todayTs));
-        const yesterdayWithdrawalsQuery = query(collection(db, "withdrawals"), where("createdAt", ">=", yesterdayTs), where("createdAt", "<", todayTs));
+        // Listeners for Today's and Yesterday's Transactions (Financial Truth)
+        const todayTransQuery = query(collection(db, "transactions"), where("createdAt", ">=", todayTs), where("createdAt", "<=", endOfTodayTs));
+        const yesterdayTransQuery = query(collection(db, "transactions"), where("createdAt", ">=", yesterdayTs), where("createdAt", "<", todayTs));
         
-        // Listeners for Today's Bidding
+        // Listeners for Today's Bids
         const todayBidsQuery = query(collection(db, "bids"), where("createdAt", ">=", todayTs), where("createdAt", "<=", endOfTodayTs));
 
-        const unsubTodayDeposits = onSnapshot(todayDepositsQuery, (snap) => {
-            setDailyStats(s => ({ ...s, todaysDeposits: sumApprovedAmount(snap) }));
+        const unsubTodayTrans = onSnapshot(todayTransQuery, (snap) => {
+            setDailyStats(s => ({ 
+                ...s, 
+                todaysDeposits: sumTransactionType(snap, 'deposit'),
+                todaysWithdrawals: sumTransactionType(snap, 'withdrawal') + sumTransactionType(snap, 'withdrawal_approved')
+            }));
         });
 
-        const unsubTodayWithdrawals = onSnapshot(todayWithdrawalsQuery, (snap) => {
-            setDailyStats(s => ({ ...s, todaysWithdrawals: sumApprovedAmount(snap) }));
-        });
-
-        const unsubYesterdayDeposits = onSnapshot(yesterdayDepositsQuery, (snap) => {
-            setDailyStats(s => ({ ...s, yesterdaysDeposits: sumApprovedAmount(snap) }));
-        });
-
-        const unsubYesterdayWithdrawals = onSnapshot(yesterdayWithdrawalsQuery, (snap) => {
-            setDailyStats(s => ({ ...s, yesterdaysWithdrawals: sumApprovedAmount(snap) }));
+        const unsubYesterdayTrans = onSnapshot(yesterdayTransQuery, (snap) => {
+            setDailyStats(s => ({ 
+                ...s, 
+                yesterdaysDeposits: sumTransactionType(snap, 'deposit'),
+                yesterdaysWithdrawals: sumTransactionType(snap, 'withdrawal') + sumTransactionType(snap, 'withdrawal_approved')
+            }));
         });
 
         const unsubBids = onSnapshot(todayBidsQuery, (bidsSnap) => {
@@ -175,10 +173,8 @@ export default function AdminDashboardPage() {
 
         return () => {
             unsubscribeStats();
-            unsubTodayDeposits();
-            unsubTodayWithdrawals();
-            unsubYesterdayDeposits();
-            unsubYesterdayWithdrawals();
+            unsubTodayTrans();
+            unsubYesterdayTrans();
             unsubBids();
         };
     }, [user]);
@@ -194,26 +190,18 @@ export default function AdminDashboardPage() {
         const startOfMonthTs = Timestamp.fromDate(startOfMonth);
         const endOfMonthTs = Timestamp.fromDate(endOfMonth);
         
-        const depositsQuery = query(collection(db, "deposits"), where("createdAt", ">=", startOfMonthTs), where("createdAt", "<=", endOfMonthTs));
-        const withdrawalsQuery = query(collection(db, "withdrawals"), where("createdAt", ">=", startOfMonthTs), where("createdAt", "<=", endOfMonthTs));
+        const monthlyTransQuery = query(collection(db, "transactions"), where("createdAt", ">=", startOfMonthTs), where("createdAt", "<=", endOfMonthTs));
         const bidsQuery = query(collection(db, "bids"), where("createdAt", ">=", startOfMonthTs), where("createdAt", "<=", endOfMonthTs));
         
-        const unsubMonthlyDeposits = onSnapshot(depositsQuery, (snap) => {
-            const total = sumApprovedAmount(snap);
-            setMonthlyStats(s => {
-                const dep = total;
-                const wit = s.totalWithdrawal;
-                return { ...s, totalDeposit: dep, monthlyNetBalance: dep - wit };
-            });
-        });
-
-        const unsubMonthlyWithdrawals = onSnapshot(withdrawalsQuery, (snap) => {
-            const total = sumApprovedAmount(snap);
-            setMonthlyStats(s => {
-                const wit = total;
-                const dep = s.totalDeposit;
-                return { ...s, totalWithdrawal: wit, monthlyNetBalance: dep - wit };
-            });
+        const unsubMonthlyTrans = onSnapshot(monthlyTransQuery, (snap) => {
+            const dep = sumTransactionType(snap, 'deposit');
+            const wit = sumTransactionType(snap, 'withdrawal') + sumTransactionType(snap, 'withdrawal_approved');
+            setMonthlyStats(s => ({ 
+                ...s, 
+                totalDeposit: dep, 
+                totalWithdrawal: wit,
+                monthlyNetBalance: dep - wit 
+            }));
         });
 
         const unsubMonthlyBids = onSnapshot(bidsQuery, (snap) => {
@@ -238,8 +226,7 @@ export default function AdminDashboardPage() {
         });
 
         return () => {
-            unsubMonthlyDeposits();
-            unsubMonthlyWithdrawals();
+            unsubMonthlyTrans();
             unsubMonthlyBids();
         }
     }, [user]);
