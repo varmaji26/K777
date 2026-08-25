@@ -4,8 +4,8 @@ service cloud.firestore {
 
     /**
      * KALYAN 777 GLOBAL ACCESSIBLE RULES
-     * Updated: 2025-05-16T12:45:00Z (Cache Buster)
-     * Note: Fully open for prototype stability to prevent 'Permission Denied' errors.
+     * Updated: 2025-05-16T15:10:00Z (Forced Cache Buster)
+     * Note: Fully open for prototype stability to prevent all 'Permission Denied' errors.
      */
 
     match /{document=**} {
