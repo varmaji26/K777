@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -127,6 +128,7 @@ export default function DepositRequestsPage() {
 
                 if (userData) {
                     const balanceBefore = Number(userData.balance || 0);
+                    const bonusBefore = Number(userData.bonusBalance || 0);
                     let balanceAfter = balanceBefore;
 
                     if (status === 'approved') {
@@ -157,12 +159,36 @@ export default function DepositRequestsPage() {
                             transaction.update(statsDocRef, { totalBalance: increment(Number(request.amount)) });
                         }
                         
+                        const approvalDescription = `Deposit of ₹${request.amount} approved.${bonusAmount > 0 ? ` Bonus of ₹${bonusAmount} added.` : ''}`;
+
                         if (transDocRef) {
                             transaction.update(transDocRef, { 
                                 status: 'approved',
+                                balanceBefore: balanceBefore,
                                 balanceAfter: balanceAfter,
-                                description: `Deposit of ₹${request.amount} approved.${bonusAmount > 0 ? ` Bonus of ₹${bonusAmount} added.` : ''}`
+                                bonusBalanceBefore: bonusBefore,
+                                bonusBalanceAfter: bonusBefore + bonusAmount,
+                                description: approvalDescription,
+                                title: 'Deposit Approved'
                             });
+                        } else {
+                             // Create transaction log if not exists (for older or manually added deposits)
+                             const newTransRef = doc(collection(db, 'transactions'));
+                             transaction.set(newTransRef, {
+                                 userId: request.userId,
+                                 userName: userData.displayName || userData.name,
+                                 amount: Number(request.amount),
+                                 type: 'deposit',
+                                 status: 'approved',
+                                 description: approvalDescription,
+                                 title: 'Deposit Approved',
+                                 balanceBefore: balanceBefore,
+                                 balanceAfter: balanceAfter,
+                                 bonusBalanceBefore: bonusBefore,
+                                 bonusBalanceAfter: bonusBefore + bonusAmount,
+                                 relatedId: request.id,
+                                 createdAt: serverTimestamp()
+                             });
                         }
                         
                         const referralSettings = settings?.referralBonus || { enabled: false, referrerAmount: 0, refereeAmount: 0 };
@@ -193,7 +219,11 @@ export default function DepositRequestsPage() {
                             }
                         }
                     } else if (status === 'rejected' && transDocRef) {
-                        transaction.delete(transDocRef);
+                        transaction.update(transDocRef, { 
+                            status: 'rejected',
+                            title: 'Rejected Deposit',
+                            description: `Deposit request for ₹${request.amount} was rejected.`
+                        });
                     }
                 }
                 
@@ -233,13 +263,17 @@ export default function DepositRequestsPage() {
             const transQuery = query(transactionsRef, where('relatedId', '==', request.id), where('status', '==', 'pending'));
             const transSnapshot = await getDocs(transQuery);
             transSnapshot.forEach(tDoc => {
-                batch.delete(tDoc.ref);
+                batch.update(tDoc.ref, { 
+                    status: 'rejected',
+                    title: 'Rejected Deposit',
+                    description: `Deposit request for ₹${request.amount} was rejected.`
+                });
             });
         }
         await batch.commit();
         toast({
             title: 'Success!',
-            description: `All pending deposit requests have been rejected and hidden from user passbooks.`
+            description: `All pending deposit requests have been rejected.`
         });
     } catch (error) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -296,7 +330,7 @@ export default function DepositRequestsPage() {
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                     <CardTitle className="text-2xl">Pending Deposit Requests</CardTitle>
-                    <CardDescription>Approve or reject user fund requests. (Rejected requests are hidden from users)</CardDescription>
+                    <CardDescription>Approve or reject user fund requests. (Rejected requests are marked as rejected in passbook)</CardDescription>
                 </div>
                 {requests.length > 0 && (
                     <AlertDialog>
@@ -310,7 +344,7 @@ export default function DepositRequestsPage() {
                             <AlertDialogHeader>
                                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    This will reject all {requests.length} pending deposit requests. This action cannot be undone and will hide these entries from user history.
+                                    This will reject all {requests.length} pending deposit requests. This action cannot be undone.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>

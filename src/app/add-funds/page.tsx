@@ -115,15 +115,35 @@ export default function AddFundsPage() {
     setIsAddingFunds(true);
 
     try {
-      await addDoc(collection(db, 'deposits'), {
+      const parsedAmount = parseFloat(amount);
+      
+      // 1. Create Deposit Record
+      const depositRef = await addDoc(collection(db, 'deposits'), {
         userId: currentUser?.id,
         displayName: currentUser?.name || 'User',
         mobile: currentUser?.mobile || '',
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         status: 'pending',
         createdAt: serverTimestamp(),
         paymentMethod: 'UPI Instant (QR)',
         transactionId: `TXN${Date.now().toString().slice(-6)}`,
+      });
+
+      // 2. Create Pending Transaction Record (For Passbook)
+      await addDoc(collection(db, 'transactions'), {
+        userId: currentUser?.id,
+        userName: currentUser?.name || 'User',
+        amount: parsedAmount,
+        type: 'deposit',
+        status: 'pending',
+        description: 'Deposit requested via UPI QR',
+        title: 'Pending Deposit',
+        balanceBefore: currentUser?.balance || 0,
+        balanceAfter: currentUser?.balance || 0,
+        bonusBalanceBefore: currentUser?.bonusBalance || 0,
+        bonusBalanceAfter: currentUser?.bonusBalance || 0,
+        relatedId: depositRef.id,
+        createdAt: serverTimestamp(),
       });
 
       toast({
