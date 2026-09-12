@@ -85,9 +85,9 @@ export function SingleDigitBulkForm({ game, betType }: BettingFormProps) {
         const now = new Date();
         const { openTime, closeTime } = getGameTimestamps(game);
         
-        // Strict Sequential Logic
+        // Parallel Logic: Both can be allowed at the same time if open time hasn't passed
         const openAllowed = now.getTime() < openTime.getTime();
-        const closeAllowed = now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
+        const closeAllowed = now.getTime() < closeTime.getTime();
 
         setIsOpenSessionAllowed(openAllowed);
         setIsCloseSessionAllowed(closeAllowed);
@@ -95,7 +95,7 @@ export function SingleDigitBulkForm({ game, betType }: BettingFormProps) {
 
         const currentSession = form.getValues('session');
         if (!sessionParam) {
-            if (openAllowed && currentSession !== 'Open') {
+            if (openAllowed && currentSession !== 'Open' && currentSession !== 'Close') {
                 form.setValue('session', 'Open');
             } else if (!openAllowed && closeAllowed && currentSession !== 'Close') {
                 form.setValue('session', 'Close');

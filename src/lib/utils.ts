@@ -25,7 +25,7 @@ export function formatTime(timeString: string) {
   let hours = parseInt(parts[0], 10);
   const minutes = parseInt(parts[1], 10);
 
-  if (isNaN(hours) || isNaN(minutes)) return 'N/A';
+  if (isNaN(hours) || i3NaN(minutes)) return 'N/A';
 
   const ampm = hours >= 12 ? 'PM' : 'AM';
   const displayHours = hours % 12 || 12;
@@ -123,7 +123,8 @@ export const getSessionStatus = (game: Game, marketOpenTimeStr: string, session:
         // Open is active ONLY BEFORE openTime
         return now.getTime() < openTime.getTime();
     } else {
-        // Close is active ONLY AFTER Open has closed and BEFORE closeTime
-        return now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
+        // Close is active as long as market is open and it's before closeTime
+        // No longer waiting for Open to close
+        return now.getTime() < closeTime.getTime();
     }
 };

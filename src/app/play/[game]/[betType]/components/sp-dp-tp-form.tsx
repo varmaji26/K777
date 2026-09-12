@@ -126,9 +126,9 @@ export function SpDpTpForm({ game, betType }: BettingFormProps) {
         const now = new Date();
         const { openTime, closeTime } = getGameTimestamps(game);
         
-        // Strict Sequential Logic
+        // Parallel Logic: Both can be allowed at the same time if open time hasn't passed
         const openAllowed = now.getTime() < openTime.getTime();
-        const closeAllowed = now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
+        const closeAllowed = now.getTime() < closeTime.getTime();
 
         setIsOpenSessionAllowed(openAllowed);
         setIsCloseSessionAllowed(closeAllowed);
@@ -136,7 +136,7 @@ export function SpDpTpForm({ game, betType }: BettingFormProps) {
 
         const currentSession = form.getValues('session');
         if (!sessionParam) {
-            if (openAllowed && currentSession !== 'Open') {
+            if (openAllowed && currentSession !== 'Open' && currentSession !== 'Close') {
                 form.setValue('session', 'Open');
             } else if (!openAllowed && closeAllowed && currentSession !== 'Close') {
                 form.setValue('session', 'Close');
@@ -344,8 +344,8 @@ export function SpDpTpForm({ game, betType }: BettingFormProps) {
                 name="session"
                 render={({ field }) => (
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    <Button type="button" variant={field.value === 'Open' ? 'default' : 'outline'} onClick={() => field.onChange('Open')} disabled={!isOpenSessionAllowed || isSubmitting} className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-500 hover:bg-orange-600 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}>Open</Button>
-                    <Button type="button" variant={field.value === 'Close' ? 'default' : 'outline'} onClick={() => field.onChange('Close')} disabled={!isCloseSessionAllowed || isSubmitting} className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-500 hover:bg-orange-600 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}>Close</Button>
+                    <Button type="button" variant={field.value === 'Open' ? 'default' : 'outline'} onClick={() => field.onChange('Open')} disabled={!isOpenSessionAllowed || isSubmitting} className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}>Open</Button>
+                    <Button type="button" variant={field.value === 'Close' ? 'default' : 'outline'} onClick={() => field.onChange('Close')} disabled={!isCloseSessionAllowed || isSubmitting} className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}>Close</Button>
                   </div>
                 )}
               />

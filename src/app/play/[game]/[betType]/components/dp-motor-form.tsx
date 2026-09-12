@@ -89,9 +89,9 @@ export function DpMotorForm({ game, betType }: BettingFormProps) {
         const now = new Date();
         const { openTime, closeTime } = getGameTimestamps(game);
         
-        // Strict Sequential Logic
+        // Parallel Logic: Both can be allowed at the same time if open time hasn't passed
         const openAllowed = now.getTime() < openTime.getTime();
-        const closeAllowed = now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
+        const closeAllowed = now.getTime() < closeTime.getTime();
 
         setIsOpenSessionAllowed(openAllowed);
         setIsCloseSessionAllowed(closeAllowed);
@@ -99,7 +99,7 @@ export function DpMotorForm({ game, betType }: BettingFormProps) {
 
         const currentSession = form.getValues('session');
         if (!sessionParam) {
-            if (openAllowed && currentSession !== 'Open') {
+            if (openAllowed && currentSession !== 'Open' && currentSession !== 'Close') {
                 form.setValue('session', 'Open');
             } else if (!openAllowed && closeAllowed && currentSession !== 'Close') {
                 form.setValue('session', 'Close');
@@ -219,7 +219,7 @@ export function DpMotorForm({ game, betType }: BettingFormProps) {
             for (const bidItem of bidsToSubmit) {
                 const bidAmount = Number(bidItem.amount);
                 let bidSource: 'real' | 'bonus' = 'real';
-                let realPart = 0;
+                let realPart = 0;  
                 let bonusPart = 0;
 
                 if (currentBonus >= bidAmount) {
@@ -390,7 +390,7 @@ export function DpMotorForm({ game, betType }: BettingFormProps) {
                 className={cn("text-sm bg-orange-500 hover:bg-orange-600 text-white", isSubmitting && "pointer-events-none opacity-50")} 
                 disabled={isSubmitting || submittedBids.length === 0}
             >
-              {isSubmitting ? <Loader className="h-4 w-4 mr-2" /> : 'Continue'}
+              {isSubmitting ? <Loader className="mr-2 h-4 w-4 mr-2" /> : 'Continue'}
             </Button>
           </CardFooter>
         </Card>
