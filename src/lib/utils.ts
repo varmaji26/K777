@@ -25,7 +25,7 @@ export function formatTime(timeString: string) {
   let hours = parseInt(parts[0], 10);
   const minutes = parseInt(parts[1], 10);
 
-  if (isNaN(hours) || i3NaN(minutes)) return 'N/A';
+  if (isNaN(hours) || isNaN(minutes)) return 'N/A';
 
   const ampm = hours >= 12 ? 'PM' : 'AM';
   const displayHours = hours % 12 || 12;
