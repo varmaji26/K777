@@ -316,7 +316,7 @@ export function SingleDigitBulkForm({ game, betType }: BettingFormProps) {
                                         variant={field.value === 'Open' ? 'default' : 'outline'}
                                         onClick={() => field.onChange('Open')}
                                         disabled={!isOpenSessionAllowed || isSubmitting}
-                                        className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg" : 'text-[#325E6A] hover:bg-blue-100')}
+                                        className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
                                     >
                                         Open
                                     </Button>
@@ -325,7 +325,7 @@ export function SingleDigitBulkForm({ game, betType }: BettingFormProps) {
                                         variant={field.value === 'Close' ? 'default' : 'outline'}
                                         onClick={() => field.onChange('Close')}
                                         disabled={!isCloseSessionAllowed || isSubmitting}
-                                        className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg" : 'text-[#325E6A] hover:bg-blue-100')}
+                                        className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
                                     >
                                         Close
                                     </Button>

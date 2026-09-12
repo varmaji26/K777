@@ -16,7 +16,7 @@ import { useUserStore, useSettingsStore } from '@/lib/store';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CalendarIcon, Send, Trash2, PlusCircle } from 'lucide-react';
 import { format } from 'date-fns';
-import { collection, serverTimestamp, depth, doc, runTransaction, increment } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, runTransaction, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { logTransaction } from '@/lib/transactions';
 import { Loader } from '@/components/loader';
@@ -311,7 +311,7 @@ export function JodiDigitForm({ game, betType }: BettingFormProps) {
                                     variant={field.value === 'Open' ? 'default' : 'outline'}
                                     onClick={() => field.onChange('Open')}
                                     disabled={!isBettingOpen || isSubmitting}
-                                    className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-500 hover:bg-orange-600 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
+                                    className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
                                 >
                                     Open
                                 </Button>
@@ -320,7 +320,7 @@ export function JodiDigitForm({ game, betType }: BettingFormProps) {
                                     variant={field.value === 'Close' ? 'default' : 'outline'}
                                     onClick={() => field.onChange('Close')}
                                     disabled={true}
-                                    className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-500 hover:bg-orange-600 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100 opacity-50 cursor-not-allowed')}
+                                    className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100 opacity-50 cursor-not-allowed')}
                                 >
                                     Close
                                 </Button>
