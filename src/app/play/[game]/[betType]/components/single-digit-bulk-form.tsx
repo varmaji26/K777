@@ -85,7 +85,7 @@ export function SingleDigitBulkForm({ game, betType }: BettingFormProps) {
         const { openTime, closeTime } = getGameTimestamps(game);
         
         const openAllowed = now.getTime() < openTime.getTime();
-        const closeAllowed = now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
+        const closeAllowed = now.getTime() < closeTime.getTime();
 
         setIsOpenSessionAllowed(openAllowed);
         setIsCloseSessionAllowed(closeAllowed);

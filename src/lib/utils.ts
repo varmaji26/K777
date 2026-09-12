@@ -98,7 +98,7 @@ export function getGameRunningStatus(game: Game, marketOpenTimeStr: string): tru
 
     const { openTime, closeTime } = getGameTimestamps(game);
     const isOpenSessionAvailable = now.getTime() < openTime.getTime();
-    const isCloseSessionAvailable = now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
+    const isCloseSessionAvailable = now.getTime() < closeTime.getTime();
     
     if (isOpenSessionAvailable || isCloseSessionAvailable) {
         return true;
@@ -122,6 +122,6 @@ export const getSessionStatus = (game: Game, marketOpenTimeStr: string, session:
     if (session === 'Open') {
         return now.getTime() < openTime.getTime();
     } else {
-        return now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
+        return now.getTime() < closeTime.getTime();
     }
 };

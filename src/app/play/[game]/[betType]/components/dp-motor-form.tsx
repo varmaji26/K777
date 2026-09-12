@@ -86,9 +86,9 @@ export function DpMotorForm({ game, betType }: BettingFormProps) {
   useEffect(() => {
     const checkTime = () => {
         const now = new Date();
-        const { openTime } = getGameTimestamps(game);
+        const { openTime, closeTime } = getGameTimestamps(game);
         const openAllowed = now.getTime() < openTime.getTime();
-        const closeAllowed = now.getTime() >= openTime.getTime() && now.getTime() < getGameTimestamps(game).closeTime.getTime();
+        const closeAllowed = now.getTime() < closeTime.getTime();
 
         setIsOpenSessionAllowed(openAllowed);
         setIsCloseSessionAllowed(closeAllowed);
