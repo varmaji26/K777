@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
@@ -19,6 +20,7 @@ import { collection, serverTimestamp, doc, runTransaction, increment } from 'fir
 import { db } from '@/lib/firebase';
 import { logTransaction } from '@/lib/transactions';
 import { Loader } from '@/components/loader';
+import { Badge } from '@/components/ui/badge';
 
 interface BettingFormProps {
   game: Game;
@@ -103,15 +105,17 @@ export function BettingForm({ game, betType }: BettingFormProps) {
         setIsBettingOpen(openAllowed || closeAllowed);
 
         const currentSession = form.getValues('session');
-        if (!openAllowed && currentSession === 'Open' && closeAllowed) {
-            form.setValue('session', 'Close');
+        if (!sessionParam) {
+            if (!openAllowed && currentSession === 'Open' && closeAllowed) {
+                form.setValue('session', 'Close');
+            }
         }
     };
 
     checkTime();
     const timer = setInterval(checkTime, 500);
     return () => clearInterval(timer);
-  }, [game, form]);
+  }, [game, form, sessionParam]);
   
   useEffect(() => {
      form.setValue('session', defaultSession);
@@ -331,33 +335,47 @@ export function BettingForm({ game, betType }: BettingFormProps) {
                 </div>
 
                 <div>
-                    <FormLabel className="text-xs font-medium">Choose Session</FormLabel>
-                    <Controller
-                        control={form.control}
-                        name="session"
-                        render={({ field }) => (
-                            <div className="mt-2 grid grid-cols-2 gap-2">
-                                <Button
-                                    type="button"
-                                    variant={field.value === 'Open' ? 'default' : 'outline'}
-                                    onClick={() => field.onChange('Open')}
-                                    disabled={!isOpenSessionAllowed || isSubmitting}
-                                    className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg" : 'text-[#325E6A] hover:bg-blue-100')}
-                                >
-                                    Open
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant={field.value === 'Close' ? 'default' : 'outline'}
-                                    onClick={() => field.onChange('Close')}
-                                    disabled={!isCloseSessionAllowed || isSubmitting}
-                                    className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg" : 'text-[#325E6A] hover:bg-blue-100')}
-                                >
-                                    Close
-                                </Button>
-                            </div>
-                        )}
-                    />
+                    {sessionParam ? (
+                        <div className="mt-2 p-3 bg-muted/50 rounded-xl flex items-center justify-between border border-blue-100">
+                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Session</span>
+                            <Badge className={cn(
+                                "font-black text-[10px] px-3",
+                                sessionParam === 'Open' ? "bg-green-600 text-white" : "bg-red-600 text-white"
+                            )}>
+                                {sessionParam.toUpperCase()}
+                            </Badge>
+                        </div>
+                    ) : (
+                        <>
+                        <FormLabel className="text-xs font-medium">Choose Session</FormLabel>
+                        <Controller
+                            control={form.control}
+                            name="session"
+                            render={({ field }) => (
+                                <div className="mt-2 grid grid-cols-2 gap-2">
+                                    <Button
+                                        type="button"
+                                        variant={field.value === 'Open' ? 'default' : 'outline'}
+                                        onClick={() => field.onChange('Open')}
+                                        disabled={!isOpenSessionAllowed || isSubmitting}
+                                        className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg" : 'text-[#325E6A] hover:bg-blue-100')}
+                                    >
+                                        Open
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant={field.value === 'Close' ? 'default' : 'outline'}
+                                        onClick={() => field.onChange('Close')}
+                                        disabled={!isCloseSessionAllowed || isSubmitting}
+                                        className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg" : 'text-[#325E6A] hover:bg-blue-100')}
+                                    >
+                                        Close
+                                    </Button>
+                                </div>
+                            )}
+                        />
+                        </>
+                    )}
                 </div>
                 
                 {mode === 'Classic' ? (

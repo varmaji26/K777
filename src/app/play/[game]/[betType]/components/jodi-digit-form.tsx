@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
@@ -19,6 +20,7 @@ import { collection, serverTimestamp, doc, runTransaction, increment } from 'fir
 import { db } from '@/lib/firebase';
 import { logTransaction } from '@/lib/transactions';
 import { Loader } from '@/components/loader';
+import { Badge } from '@/components/ui/badge';
 
 const allJodis: Record<string, string[]> = {
     '0': ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09'],
@@ -62,8 +64,6 @@ export function JodiDigitForm({ game, betType }: BettingFormProps) {
   const { currentUser } = useUserStore();
   const { appSettings } = useSettingsStore();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const sessionParam = searchParams.get('session');
   
   const minBid = appSettings.minBidJodiDigit || 10;
 
@@ -72,20 +72,14 @@ export function JodiDigitForm({ game, betType }: BettingFormProps) {
   const [selectedDigit, setSelectedDigit] = useState<string>('0');
   
   const [isBettingOpen, setIsBettingOpen] = useState(true);
-  const [isCloseSessionAllowed, setIsCloseSessionAllowed] = useState(false);
-  const [isOpenSessionAllowed, setIsOpenSessionAllowed] = useState(true);
 
   const [mode, setMode] = useState<'Classic' | 'Advanced'>('Classic');
   const [submittedBids, setSubmittedBids] = useState<BidItem[]>([]);
 
-  const defaultSession = useMemo(() => {
-    return (sessionParam === 'Open' || sessionParam === 'Close') ? sessionParam : 'Open';
-  }, [sessionParam]);
-
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      session: defaultSession,
+      session: 'Open',
       classicBids: flatAllJodis.map(digit => ({ digit, points: undefined })),
       advancedBidNumber: '',
       advancedAmount: undefined,
@@ -105,24 +99,16 @@ export function JodiDigitForm({ game, betType }: BettingFormProps) {
   useEffect(() => {
     const checkTime = () => {
         const now = new Date();
-        const { openTime, closeTime } = getGameTimestamps(game);
+        const { openTime } = getGameTimestamps(game);
         const openAllowed = now.getTime() < openTime.getTime();
-        const closeAllowed = now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
-
-        setIsOpenSessionAllowed(openAllowed);
-        setIsCloseSessionAllowed(closeAllowed);
         setIsBettingOpen(openAllowed);
     };
 
     checkTime();
-    const timer = setInterval(checkTime, 500);
+    const timer = setInterval(checkTime, 1000);
     return () => clearInterval(timer);
   }, [game]);
   
-  useEffect(() => {
-     form.setValue('session', defaultSession);
-  }, [defaultSession, form]);
-
   const handleAddClassicBids = () => {
     const classicBidsData = form.getValues('classicBids');
     const newBids = classicBidsData
@@ -313,34 +299,9 @@ export function JodiDigitForm({ game, betType }: BettingFormProps) {
                     <Button type="button" onClick={() => setMode('Advanced')} variant={mode === 'Advanced' ? 'default' : 'ghost'} className={cn("rounded-full shadow-md text-sm", mode === 'Advanced' ? '' : 'text-[#325E6A] hover:bg-blue-100')}>Advanced</Button>
                 </div>
 
-                <div className="hidden">
-                    <FormLabel className="text-xs font-medium">Choose Session</FormLabel>
-                    <Controller
-                        control={form.control}
-                        name="session"
-                        render={({ field }) => (
-                            <div className="mt-2 grid grid-cols-2 gap-2">
-                                <Button
-                                    type="button"
-                                    variant={field.value === 'Open' ? 'default' : 'outline'}
-                                    onClick={() => field.onChange('Open')}
-                                    disabled={true}
-                                    className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg" : 'text-[#325E6A] hover:bg-blue-100')}
-                                >
-                                    Open
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant={field.value === 'Close' ? 'default' : 'outline'}
-                                    onClick={() => field.onChange('Close')}
-                                    disabled={true}
-                                    className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg" : 'text-[#325E6A] hover:bg-blue-100')}
-                                >
-                                    Close
-                                </Button>
-                            </div>
-                        )}
-                    />
+                <div className="mt-2 p-3 bg-muted/50 rounded-xl flex items-center justify-between border border-blue-100">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Session</span>
+                    <Badge className="font-black text-[10px] px-3 bg-green-600 text-white">OPEN ONLY</Badge>
                 </div>
 
                 {isFormDisabled && (

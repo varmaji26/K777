@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useForm } from 'react-hook-form';
@@ -19,6 +20,7 @@ import { collection, serverTimestamp, doc, runTransaction, increment } from 'fir
 import { db } from '@/lib/firebase';
 import { logTransaction } from '@/lib/transactions';
 import { Loader } from '@/components/loader';
+import { Badge } from '@/components/ui/badge';
 
 interface BettingFormProps {
   game: Game;
@@ -84,11 +86,7 @@ export function FullSangamForm({ game, betType }: BettingFormProps) {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = useRef(false);
-  const [isBettingAllowed, setIsBettingAllowed] = useState(() => {
-    const now = new Date();
-    const { openTime } = getGameTimestamps(game);
-    return now.getTime() < openTime.getTime();
-  });
+  const [isBettingAllowed, setIsBettingAllowed] = useState(true);
   const [submittedBids, setSubmittedBids] = useState<BidItem[]>([]);
 
   const form = useForm<FormValues>({
@@ -106,12 +104,15 @@ export function FullSangamForm({ game, betType }: BettingFormProps) {
   }, [submittedBids]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
+    const checkTime = () => {
         const now = new Date();
         const { openTime } = getGameTimestamps(game);
         const openAllowed = now.getTime() < openTime.getTime();
         setIsBettingAllowed(openAllowed);
-    }, 1000);
+    };
+
+    checkTime();
+    const timer = setInterval(checkTime, 1000);
     return () => clearInterval(timer);
   }, [game]);
   
@@ -280,7 +281,13 @@ export function FullSangamForm({ game, betType }: BettingFormProps) {
                     <CalendarIcon className="h-4 w-4 text-[#325E6A]" />
                     <p className="text-sm font-medium text-[#325E6A]">{format(new Date(), "EEEE, dd MMMM yyyy")}</p>
                 </div>
-                 {isFormDisabled && (
+                 
+                 <div className="mt-2 p-3 bg-muted/50 rounded-xl flex items-center justify-between border border-blue-100">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Session</span>
+                    <Badge className="font-black text-[10px] px-3 bg-green-600 text-white">OPEN ONLY</Badge>
+                </div>
+
+                {isFormDisabled && (
                     <p className="text-center text-red-500 text-sm font-bold p-2 bg-red-100 rounded-md">Bidding closed for Full Sangam.</p>
                 )}
                 
