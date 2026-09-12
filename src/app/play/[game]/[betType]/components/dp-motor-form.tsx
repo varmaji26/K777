@@ -318,8 +318,8 @@ export function DpMotorForm({ game, betType }: BettingFormProps) {
                 name="session"
                 render={({ field }) => (
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    <Button type="button" variant={field.value === 'Open' ? 'default' : 'outline'} onClick={() => field.onChange('Open')} disabled={!isOpenSessionAllowed || isSubmitting} className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}>Open</Button>
-                    <Button type="button" variant={field.value === 'Close' ? 'default' : 'outline'} onClick={() => field.onChange('Close')} disabled={!isCloseSessionAllowed || isSubmitting} className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}>Close</Button>
+                    <Button type="button" variant={field.value === 'Open' ? 'default' : 'outline'} onClick={() => field.onChange('Open')} disabled={!isOpenSessionAllowed || isSubmitting || sessionParam === 'Close'} className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}>Open</Button>
+                    <Button type="button" variant={field.value === 'Close' ? 'default' : 'outline'} onClick={() => field.onChange('Close')} disabled={!isCloseSessionAllowed || isSubmitting || sessionParam === 'Open'} className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}>Close</Button>
                   </div>
                 )}
               />
