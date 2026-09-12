@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
@@ -295,8 +294,8 @@ export function JodiDigitForm({ game, betType }: BettingFormProps) {
                 </div>
 
                 <div className="p-1 rounded-full grid grid-cols-2 gap-1">
-                    <Button type="button" onClick={() => setMode('Classic')} variant={mode === 'Classic' ? 'default' : 'ghost'} className={cn("rounded-full shadow-md text-sm", mode === 'Classic' ? '' : 'text-[#325E6A] hover:bg-blue-100')}>Classic</Button>
-                    <Button type="button" onClick={() => setMode('Advanced')} variant={mode === 'Advanced' ? 'default' : 'ghost'} className={cn("rounded-full shadow-md text-sm", mode === 'Advanced' ? '' : 'text-[#325E6A] hover:bg-blue-100')}>Advanced</Button>
+                    <Button type="button" onClick={() => setMode('Classic')} variant={mode === 'Classic' ? 'default' : 'ghost'} className={cn("rounded-full shadow-md text-sm", mode === 'Classic' ? 'bg-[#325E6A] text-white' : 'text-[#325E6A] hover:bg-blue-100')}>Classic</Button>
+                    <Button type="button" onClick={() => setMode('Advanced')} variant={mode === 'Advanced' ? 'default' : 'ghost'} className={cn("rounded-full shadow-md text-sm", mode === 'Advanced' ? 'bg-[#325E6A] text-white' : 'text-[#325E6A] hover:bg-blue-100')}>Advanced</Button>
                 </div>
 
                 <div>
@@ -311,7 +310,7 @@ export function JodiDigitForm({ game, betType }: BettingFormProps) {
                                     variant={field.value === 'Open' ? 'default' : 'outline'}
                                     onClick={() => field.onChange('Open')}
                                     disabled={!isBettingOpen || isSubmitting}
-                                    className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
+                                    className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-500 hover:bg-orange-600 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
                                 >
                                     Open
                                 </Button>
@@ -320,7 +319,7 @@ export function JodiDigitForm({ game, betType }: BettingFormProps) {
                                     variant={field.value === 'Close' ? 'default' : 'outline'}
                                     onClick={() => field.onChange('Close')}
                                     disabled={true}
-                                    className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100 opacity-50 cursor-not-allowed')}
+                                    className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-500 hover:bg-orange-600 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100 opacity-50 cursor-not-allowed')}
                                 >
                                     Close
                                 </Button>

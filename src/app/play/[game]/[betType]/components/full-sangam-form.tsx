@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm } from 'react-hook-form';
@@ -7,7 +6,7 @@ import * as z from 'zod';
 import type { Game, Bid, BetType } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormMessage, FormLabel } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState, useMemo, useRef } from 'react';
@@ -282,9 +281,25 @@ export function FullSangamForm({ game, betType }: BettingFormProps) {
                     <p className="text-sm font-medium text-[#325E6A]">{format(new Date(), "EEEE, dd MMMM yyyy")}</p>
                 </div>
                  
-                 <div className="mt-2 p-3 bg-muted/50 rounded-xl flex items-center justify-between border border-blue-100">
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Session</span>
-                    <Badge className="font-black text-[10px] px-3 bg-green-600 text-white">OPEN ONLY</Badge>
+                <div>
+                    <FormLabel className="text-xs font-medium">Choose Session</FormLabel>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                        <Button
+                            type="button"
+                            variant="default"
+                            className="w-full h-9 text-sm shadow-lg bg-orange-500 hover:bg-orange-600 text-white border-none"
+                        >
+                            Open
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            disabled={true}
+                            className="w-full h-9 text-sm text-[#325E6A] hover:bg-blue-100 opacity-50 cursor-not-allowed"
+                        >
+                            Close
+                        </Button>
+                    </div>
                 </div>
 
                 {isFormDisabled && (

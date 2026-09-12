@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm, Controller } from 'react-hook-form';
@@ -21,6 +20,7 @@ import { db } from '@/lib/firebase';
 import { logTransaction } from '@/lib/transactions';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader } from '@/components/loader';
+import { Badge } from '@/components/ui/badge';
 
 const allSinglePanas: Record<string, string[]> = {
     '1': ['128', '137', '146', '236', '245', '290', '380', '470', '489', '560', '678', '579'],
@@ -126,27 +126,34 @@ export function SpDpTpForm({ game, betType }: BettingFormProps) {
         const now = new Date();
         const { openTime, closeTime } = getGameTimestamps(game);
         
+        // Strict Sequential Logic
         const openAllowed = now.getTime() < openTime.getTime();
-        const closeAllowed = now.getTime() < closeTime.getTime();
+        const closeAllowed = now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
 
         setIsOpenSessionAllowed(openAllowed);
         setIsCloseSessionAllowed(closeAllowed);
         setIsBettingAllowed(openAllowed || closeAllowed);
 
         const currentSession = form.getValues('session');
-        if (!openAllowed && currentSession === 'Open' && closeAllowed) {
-            form.setValue('session', 'Close');
+        if (!sessionParam) {
+            if (openAllowed && currentSession !== 'Open') {
+                form.setValue('session', 'Open');
+            } else if (!openAllowed && closeAllowed && currentSession !== 'Close') {
+                form.setValue('session', 'Close');
+            }
         }
     };
 
     checkTime();
-    const timer = setInterval(checkTime, 500);
+    const timer = setInterval(checkTime, 1000);
     return () => clearInterval(timer);
-  }, [game, form]);
+  }, [game, form, sessionParam]);
   
   useEffect(() => {
-     form.setValue('session', defaultSession);
-  }, [defaultSession, form]);
+     if (sessionParam) {
+        form.setValue('session', sessionParam);
+     }
+  }, [sessionParam, form]);
 
   const handleGenerate = (data: FormValues) => {
     const numPoints = Number(data.points);
@@ -337,8 +344,8 @@ export function SpDpTpForm({ game, betType }: BettingFormProps) {
                 name="session"
                 render={({ field }) => (
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    <Button type="button" variant={field.value === 'Open' ? 'default' : 'outline'} onClick={() => field.onChange('Open')} disabled={!isOpenSessionAllowed || isSubmitting} className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}>Open</Button>
-                    <Button type="button" variant={field.value === 'Close' ? 'default' : 'outline'} onClick={() => field.onChange('Close')} disabled={!isCloseSessionAllowed || isSubmitting} className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}>Close</Button>
+                    <Button type="button" variant={field.value === 'Open' ? 'default' : 'outline'} onClick={() => field.onChange('Open')} disabled={!isOpenSessionAllowed || isSubmitting} className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-500 hover:bg-orange-600 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}>Open</Button>
+                    <Button type="button" variant={field.value === 'Close' ? 'default' : 'outline'} onClick={() => field.onChange('Close')} disabled={!isCloseSessionAllowed || isSubmitting} className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-500 hover:bg-orange-600 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}>Close</Button>
                   </div>
                 )}
               />

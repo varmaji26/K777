@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm, Controller } from 'react-hook-form';
@@ -101,8 +100,9 @@ export function SinglePanaBulkForm({ game, betType }: BettingFormProps) {
         const now = new Date();
         const { openTime, closeTime } = getGameTimestamps(game);
         
+        // Strict Sequential Logic
         const openAllowed = now.getTime() < openTime.getTime();
-        const closeAllowed = now.getTime() < closeTime.getTime();
+        const closeAllowed = now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
 
         setIsOpenSessionAllowed(openAllowed);
         setIsCloseSessionAllowed(closeAllowed);
@@ -110,20 +110,24 @@ export function SinglePanaBulkForm({ game, betType }: BettingFormProps) {
 
         const currentSession = form.getValues('session');
         if (!sessionParam) {
-            if (!openAllowed && currentSession === 'Open' && closeAllowed) {
+            if (openAllowed && currentSession !== 'Open') {
+                form.setValue('session', 'Open');
+            } else if (!openAllowed && closeAllowed && currentSession !== 'Close') {
                 form.setValue('session', 'Close');
             }
         }
     };
 
     checkTime();
-    const timer = setInterval(checkTime, 500);
+    const timer = setInterval(checkTime, 1000);
     return () => clearInterval(timer);
   }, [game, form, sessionParam]);
   
   useEffect(() => {
-     form.setValue('session', defaultSession);
-  }, [defaultSession, form]);
+     if (sessionParam) {
+        form.setValue('session', sessionParam);
+     }
+  }, [sessionParam, form]);
   
   const handlePanaToggle = (pana: string) => {
     setSelectedPanas(prev =>
@@ -308,47 +312,33 @@ export function SinglePanaBulkForm({ game, betType }: BettingFormProps) {
                 </div>
                 
                 <div>
-                    {sessionParam ? (
-                        <div className="mt-2 p-3 bg-muted/50 rounded-xl flex items-center justify-between border border-blue-100">
-                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Session</span>
-                            <Badge className={cn(
-                                "font-black text-[10px] px-3",
-                                sessionParam === 'Open' ? "bg-green-600 text-white" : "bg-red-600 text-white"
-                            )}>
-                                {sessionParam.toUpperCase()}
-                            </Badge>
-                        </div>
-                    ) : (
-                        <>
-                        <FormLabel className="text-xs font-medium">Choose Session</FormLabel>
-                        <Controller
-                            control={form.control}
-                            name="session"
-                            render={({ field }) => (
-                                <div className="mt-2 grid grid-cols-2 gap-2">
-                                    <Button
-                                        type="button"
-                                        variant={field.value === 'Open' ? 'default' : 'outline'}
-                                        onClick={() => field.onChange('Open')}
-                                        disabled={!isOpenSessionAllowed || isSubmitting}
-                                        className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
-                                    >
-                                        Open
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        variant={field.value === 'Close' ? 'default' : 'outline'}
-                                        onClick={() => field.onChange('Close')}
-                                        disabled={!isCloseSessionAllowed || isSubmitting}
-                                        className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
-                                    >
-                                        Close
-                                    </Button>
-                                </div>
-                            )}
-                        />
-                        </>
-                    )}
+                    <FormLabel className="text-xs font-medium">Choose Session</FormLabel>
+                    <Controller
+                        control={form.control}
+                        name="session"
+                        render={({ field }) => (
+                            <div className="mt-2 grid grid-cols-2 gap-2">
+                                <Button
+                                    type="button"
+                                    variant={field.value === 'Open' ? 'default' : 'outline'}
+                                    onClick={() => field.onChange('Open')}
+                                    disabled={!isOpenSessionAllowed || isSubmitting}
+                                    className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-500 hover:bg-orange-600 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
+                                >
+                                    Open
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant={field.value === 'Close' ? 'default' : 'outline'}
+                                    onClick={() => field.onChange('Close')}
+                                    disabled={!isCloseSessionAllowed || isSubmitting}
+                                    className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-500 hover:bg-orange-600 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
+                                >
+                                    Close
+                                </Button>
+                            </div>
+                        )}
+                    />
                 </div>
                 
                   <div className="space-y-4">

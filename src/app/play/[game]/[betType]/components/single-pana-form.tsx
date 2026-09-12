@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
@@ -114,8 +113,9 @@ export function SinglePanaForm({ game, betType }: BettingFormProps) {
         const now = new Date();
         const { openTime, closeTime } = getGameTimestamps(game);
         
+        // Strict Sequential Logic
         const openAllowed = now.getTime() < openTime.getTime();
-        const closeAllowed = now.getTime() < closeTime.getTime();
+        const closeAllowed = now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
 
         setIsOpenSessionAllowed(openAllowed);
         setIsCloseSessionAllowed(closeAllowed);
@@ -123,20 +123,24 @@ export function SinglePanaForm({ game, betType }: BettingFormProps) {
 
         const currentSession = form.getValues('session');
         if (!sessionParam) {
-            if (!openAllowed && currentSession === 'Open' && closeAllowed) {
+            if (openAllowed && currentSession !== 'Open') {
+                form.setValue('session', 'Open');
+            } else if (!openAllowed && closeAllowed && currentSession !== 'Close') {
                 form.setValue('session', 'Close');
             }
         }
     };
 
     checkTime();
-    const timer = setInterval(checkTime, 500);
+    const timer = setInterval(checkTime, 1000);
     return () => clearInterval(timer);
   }, [game, form, sessionParam]);
   
   useEffect(() => {
-     form.setValue('session', defaultSession);
-  }, [defaultSession, form]);
+     if (sessionParam) {
+        form.setValue('session', sessionParam);
+     }
+  }, [sessionParam, form]);
   
   const handleAddClassicBids = () => {
     const classicBidsData = form.getValues('classicBids');
@@ -330,8 +334,8 @@ export function SinglePanaForm({ game, betType }: BettingFormProps) {
                     <p className="text-sm font-medium text-[#325E6A]">{format(new Date(), "EEEE, dd MMMM yyyy")}</p>
                 </div>
                 <div className="p-1 rounded-full grid grid-cols-2 gap-1">
-                    <Button type="button" onClick={() => setMode('Classic')} variant={mode === 'Classic' ? 'default' : 'ghost'} className={cn("rounded-full shadow-md text-sm", mode === 'Classic' ? '' : 'text-[#325E6A] hover:bg-blue-100')}>Classic</Button>
-                    <Button type="button" onClick={() => setMode('Advanced')} variant={mode === 'Advanced' ? 'default' : 'ghost'} className={cn("rounded-full shadow-md text-sm", mode === 'Advanced' ? '' : 'text-[#325E6A] hover:bg-blue-100')}>Advanced</Button>
+                    <Button type="button" onClick={() => setMode('Classic')} variant={mode === 'Classic' ? 'default' : 'ghost'} className={cn("rounded-full shadow-md text-sm", mode === 'Classic' ? 'bg-[#325E6A] text-white' : 'text-[#325E6A] hover:bg-blue-100')}>Classic</Button>
+                    <Button type="button" onClick={() => setMode('Advanced')} variant={mode === 'Advanced' ? 'default' : 'ghost'} className={cn("rounded-full shadow-md text-sm", mode === 'Advanced' ? 'bg-[#325E6A] text-white' : 'text-[#325E6A] hover:bg-blue-100')}>Advanced</Button>
                 </div>
                 <div>
                     <FormLabel className="text-xs font-medium">Choose Session</FormLabel>
@@ -345,7 +349,7 @@ export function SinglePanaForm({ game, betType }: BettingFormProps) {
                                     variant={field.value === 'Open' ? 'default' : 'outline'}
                                     onClick={() => field.onChange('Open')}
                                     disabled={!isOpenSessionAllowed || isSubmitting}
-                                    className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
+                                    className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-500 hover:bg-orange-600 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
                                 >
                                     Open
                                 </Button>
@@ -354,7 +358,7 @@ export function SinglePanaForm({ game, betType }: BettingFormProps) {
                                     variant={field.value === 'Close' ? 'default' : 'outline'}
                                     onClick={() => field.onChange('Close')}
                                     disabled={!isCloseSessionAllowed || isSubmitting}
-                                    className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
+                                    className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-500 hover:bg-orange-600 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
                                 >
                                     Close
                                 </Button>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm, Controller } from 'react-hook-form';
@@ -20,6 +19,7 @@ import { collection, serverTimestamp, doc, runTransaction, increment } from 'fir
 import { db } from '@/lib/firebase';
 import { logTransaction } from '@/lib/transactions';
 import { Loader } from '@/components/loader';
+import { Badge } from '@/components/ui/badge';
 
 const allDoublePanas: Record<string, string[]> = {
     '1': ['100', '119', '155', '227', '335', '344', '399', '588', '669'],
@@ -99,27 +99,34 @@ export function DoublePanaBulkForm({ game, betType }: BettingFormProps) {
         const now = new Date();
         const { openTime, closeTime } = getGameTimestamps(game);
         
+        // Strict Sequential Logic
         const openAllowed = now.getTime() < openTime.getTime();
-        const closeAllowed = now.getTime() < closeTime.getTime();
+        const closeAllowed = now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
 
         setIsOpenSessionAllowed(openAllowed);
         setIsCloseSessionAllowed(closeAllowed);
         setIsBettingAllowed(openAllowed || closeAllowed);
 
         const currentSession = form.getValues('session');
-        if (!openAllowed && currentSession === 'Open' && closeAllowed) {
-            form.setValue('session', 'Close');
+        if (!sessionParam) {
+            if (openAllowed && currentSession !== 'Open') {
+                form.setValue('session', 'Open');
+            } else if (!openAllowed && closeAllowed && currentSession !== 'Close') {
+                form.setValue('session', 'Close');
+            }
         }
     };
 
     checkTime();
-    const timer = setInterval(checkTime, 500);
+    const timer = setInterval(checkTime, 1000);
     return () => clearInterval(timer);
-  }, [game, form]);
+  }, [game, form, sessionParam]);
   
   useEffect(() => {
-     form.setValue('session', defaultSession);
-  }, [defaultSession, form]);
+     if (sessionParam) {
+        form.setValue('session', sessionParam);
+     }
+  }, [sessionParam, form]);
   
   const handlePanaToggle = (pana: string) => {
     setSelectedPanas(prev =>
@@ -315,7 +322,7 @@ export function DoublePanaBulkForm({ game, betType }: BettingFormProps) {
                                     variant={field.value === 'Open' ? 'default' : 'outline'}
                                     onClick={() => field.onChange('Open')}
                                     disabled={!isOpenSessionAllowed || isSubmitting}
-                                    className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
+                                    className={cn("w-full h-9 text-sm", field.value === 'Open' ? "shadow-lg bg-orange-500 hover:bg-orange-600 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
                                 >
                                     Open
                                 </Button>
@@ -324,7 +331,7 @@ export function DoublePanaBulkForm({ game, betType }: BettingFormProps) {
                                     variant={field.value === 'Close' ? 'default' : 'outline'}
                                     onClick={() => field.onChange('Close')}
                                     disabled={!isCloseSessionAllowed || isSubmitting}
-                                    className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-400 hover:bg-orange-500 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
+                                    className={cn("w-full h-9 text-sm", field.value === 'Close' ? "shadow-lg bg-orange-500 hover:bg-orange-600 text-white border-none" : 'text-[#325E6A] hover:bg-blue-100')}
                                 >
                                     Close
                                 </Button>

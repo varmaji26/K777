@@ -120,8 +120,10 @@ export const getSessionStatus = (game: Game, marketOpenTimeStr: string, session:
     const { openTime, closeTime } = getGameTimestamps(game);
 
     if (session === 'Open') {
+        // Open is active ONLY BEFORE openTime
         return now.getTime() < openTime.getTime();
     } else {
-        return now.getTime() < closeTime.getTime();
+        // Close is active ONLY AFTER Open has closed and BEFORE closeTime
+        return now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
     }
 };

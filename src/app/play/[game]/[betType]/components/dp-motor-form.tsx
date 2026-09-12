@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm, Controller } from 'react-hook-form';
@@ -20,6 +19,7 @@ import { collection, runTransaction, doc, serverTimestamp, increment } from 'fir
 import { db } from '@/lib/firebase';
 import { logTransaction } from '@/lib/transactions';
 import { Loader } from '@/components/loader';
+import { Badge } from '@/components/ui/badge';
 
 interface BettingFormProps {
   game: Game;
@@ -88,27 +88,35 @@ export function DpMotorForm({ game, betType }: BettingFormProps) {
     const checkTime = () => {
         const now = new Date();
         const { openTime, closeTime } = getGameTimestamps(game);
+        
+        // Strict Sequential Logic
         const openAllowed = now.getTime() < openTime.getTime();
-        const closeAllowed = now.getTime() < closeTime.getTime();
+        const closeAllowed = now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
 
         setIsOpenSessionAllowed(openAllowed);
         setIsCloseSessionAllowed(closeAllowed);
         setIsBettingAllowed(openAllowed || closeAllowed);
 
         const currentSession = form.getValues('session');
-        if (!openAllowed && currentSession === 'Open' && closeAllowed) {
-            form.setValue('session', 'Close');
+        if (!sessionParam) {
+            if (openAllowed && currentSession !== 'Open') {
+                form.setValue('session', 'Open');
+            } else if (!openAllowed && closeAllowed && currentSession !== 'Close') {
+                form.setValue('session', 'Close');
+            }
         }
     };
 
     checkTime();
-    const timer = setInterval(checkTime, 500);
+    const timer = setInterval(checkTime, 1000);
     return () => clearInterval(timer);
-  }, [game, form]);
+  }, [game, form, sessionParam]);
   
   useEffect(() => {
-     form.setValue('session', defaultSession);
-  }, [defaultSession, form]);
+     if (sessionParam) {
+        form.setValue('session', sessionParam);
+     }
+  }, [sessionParam, form]);
 
   const handleGenerate = (data: FormValues) => {
     const numPoints = Number(data.points);
