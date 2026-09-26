@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Loader } from '@/components/loader';
-import { Search, Download, Trash2, Plus, Calendar as CalendarIcon, User, Landmark, BookOpen, History, ArrowRight, UserSearch } from 'lucide-react';
+import { Search, Download, Trash2, Plus, Calendar as CalendarIcon, User, Landmark, BookOpen, History, ArrowRight, UserSearch, RefreshCw } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -56,6 +56,7 @@ export default function CustomerLedgerPage() {
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isInitialDashboardLoading, setIsInitialDashboardLoading] = useState(true);
   
   // Filters
   const [fromDate, setFromDate] = useState<Date | undefined>();
@@ -100,6 +101,10 @@ export default function CustomerLedgerPage() {
         if (data.userId) ids.add(data.userId);
       });
       setActiveUserIds(ids);
+      setIsInitialDashboardLoading(false);
+    }, (err) => {
+      console.error("Ledger Sync Error:", err);
+      setIsInitialDashboardLoading(false);
     });
     return () => unsub();
   }, []);
@@ -334,7 +339,12 @@ export default function CustomerLedgerPage() {
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{activeUserIds.size} Ledgers Found</p>
                </div>
                
-               {activeUserIds.size === 0 ? (
+               {isInitialDashboardLoading ? (
+                 <Card className="h-64 rounded-2xl flex flex-col items-center justify-center p-20 text-muted-foreground border-none bg-white/50">
+                    <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mb-4" />
+                    <p className="font-bold text-lg text-center">Checking Accounts...</p>
+                 </Card>
+               ) : activeUserIds.size === 0 ? (
                   <Card className="h-full rounded-2xl flex flex-col items-center justify-center p-20 text-muted-foreground border-2 border-dashed border-muted bg-white/50">
                     <div className="bg-muted h-20 w-20 rounded-full flex items-center justify-center mb-6">
                       <User className="h-10 w-10 opacity-20" />
