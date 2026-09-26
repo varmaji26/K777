@@ -62,12 +62,11 @@ export default function CustomerLedgerPage() {
   // Form
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'credit' | 'debit'>('credit');
-  const [gameName, setGameName] = useState('N/A');
+  const [gameName, setGameName] = useState('Main Market');
   const [description, setDescription] = useState('');
   const [entryDate, setEntryDate] = useState<Date>(new Date());
 
   const gameOptions = [
-    'N/A',
     'Main Market',
     'Milan Day',
     'Milan Night',
