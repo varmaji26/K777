@@ -11,13 +11,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Loader } from '@/components/loader';
-import { Search, Download, Trash2, Plus, Calendar as CalendarIcon, User, Landmark, BookOpen, History, ArrowRight } from 'lucide-react';
+import { Search, Download, Trash2, Plus, Calendar as CalendarIcon, User, Landmark, BookOpen, History, ArrowRight, UserSearch } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from '@/components/ui/sheet';
 
 // Types
 interface LedgerEntry {
@@ -53,6 +54,7 @@ export default function CustomerLedgerPage() {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   
   // Filters
   const [fromDate, setFromDate] = useState<Date | undefined>();
@@ -255,68 +257,72 @@ export default function CustomerLedgerPage() {
           </h2>
           <p className="text-blue-100 mt-1 font-medium opacity-90">Manage offline accounts and local transactions for users.</p>
         </div>
-        <Landmark className="h-16 w-16 opacity-20" />
+        <div className="flex items-center gap-4">
+            <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+                <SheetTrigger asChild>
+                    <Button className="bg-white text-blue-700 hover:bg-blue-50 font-bold rounded-xl h-12 px-6 shadow-lg gap-2">
+                        <UserSearch className="h-5 w-5" />
+                        Find Customer
+                    </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-[350px] p-0 border-none">
+                    <SheetHeader className="bg-blue-600 p-6 text-white text-left">
+                        <SheetTitle className="text-white text-xl flex items-center gap-2">
+                            <Search className="h-5 w-5" />
+                            Select Customer
+                        </SheetTitle>
+                        <div className="relative pt-4">
+                            <Search className="absolute left-3 top-[70%] -translate-y-1/2 h-4 w-4 text-blue-300" />
+                            <Input 
+                                placeholder="Search name or mobile..." 
+                                className="pl-9 bg-white/10 border-white/20 text-white placeholder:text-blue-200 h-11 rounded-xl"
+                                value={userSearch}
+                                onChange={(e) => setUserSearch(e.target.value)}
+                            />
+                        </div>
+                    </SheetHeader>
+                    <div className="overflow-y-auto h-full pb-20">
+                        {filteredUsers.length === 0 ? (
+                            <div className="p-10 text-center text-muted-foreground">
+                                <p className="font-bold">No customers found</p>
+                            </div>
+                        ) : (
+                            filteredUsers.map(u => {
+                                const isActive = activeUserIds.has(u.id);
+                                return (
+                                    <SheetClose asChild key={u.id}>
+                                        <div 
+                                            onClick={() => setSelectedGameUserId(u.id)}
+                                            className={cn(
+                                                "p-4 border-b last:border-none cursor-pointer transition-all flex justify-between items-center group",
+                                                selectedUserId === u.id ? "bg-blue-50 text-blue-700 border-l-4 border-l-blue-600" : "hover:bg-slate-50"
+                                            )}
+                                        >
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-bold truncate">{u.name}</p>
+                                                    {isActive && (
+                                                        <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase bg-blue-100 text-blue-600">
+                                                            <History className="h-2 w-2" /> History
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-muted-foreground">{u.mobile}</p>
+                                            </div>
+                                            <ArrowRight className="h-4 w-4 text-muted-foreground opacity-30 group-hover:opacity-100 transition-opacity" />
+                                        </div>
+                                    </SheetClose>
+                                )
+                            })
+                        )}
+                    </div>
+                </SheetContent>
+            </Sheet>
+            <Landmark className="h-16 w-16 opacity-20" />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* User Selection Sidebar */}
-        <Card className="lg:col-span-4 rounded-2xl shadow-lg border-none overflow-hidden h-fit">
-          <CardHeader className="bg-muted/30 pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <User className="h-5 w-5 text-blue-600" />
-              Find Customer
-            </CardTitle>
-            <div className="relative pt-2">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search name or mobile..." 
-                className="pl-9 bg-white border-none shadow-inner h-11"
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-              />
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="max-h-[600px] overflow-y-auto">
-              {filteredUsers.map(u => {
-                const isActive = activeUserIds.has(u.id);
-                return (
-                  <div 
-                    key={u.id}
-                    onClick={() => setSelectedGameUserId(u.id)}
-                    className={cn(
-                      "p-4 border-b last:border-none cursor-pointer transition-all flex justify-between items-center group",
-                      selectedUserId === u.id ? "bg-blue-600 text-white" : "hover:bg-blue-50"
-                    )}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold truncate">{u.name}</p>
-                        {isActive && (
-                           <div className={cn(
-                             "flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase",
-                             selectedUserId === u.id ? "bg-white/20 text-white" : "bg-blue-100 text-blue-600"
-                           )}>
-                             <History className="h-2 w-2" /> History
-                           </div>
-                        )}
-                      </div>
-                      <p className={cn("text-xs", selectedUserId === u.id ? "text-blue-100" : "text-muted-foreground")}>{u.mobile}</p>
-                    </div>
-                    {selectedUserId === u.id ? (
-                        <div className="h-2 w-2 rounded-full bg-white animate-pulse shrink-0 ml-2" />
-                    ) : (
-                        <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Ledger Details */}
-        <div className="lg:col-span-8 space-y-6">
+      <div className="w-full space-y-6">
           {!selectedUserId ? (
             <div className="space-y-6 animate-in fade-in duration-500">
                <div className="flex items-center justify-between">
@@ -333,10 +339,10 @@ export default function CustomerLedgerPage() {
                       <User className="h-10 w-10 opacity-20" />
                     </div>
                     <p className="font-bold text-lg text-center">No active ledgers yet</p>
-                    <p className="text-sm opacity-60 text-center max-w-xs mt-2">Search for a customer in the left sidebar to start their offline account.</p>
+                    <p className="text-sm opacity-60 text-center max-w-xs mt-2">Click "Find Customer" to start your first offline account entry.</p>
                   </Card>
                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {users.filter(u => activeUserIds.has(u.id)).map(u => (
                       <Card 
                         key={u.id}
@@ -362,7 +368,7 @@ export default function CustomerLedgerPage() {
                )}
             </div>
           ) : (
-            <>
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-6">
               {/* Summary & Filters */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <Card className="bg-white rounded-2xl shadow-md border-none flex flex-col justify-center p-6 relative overflow-hidden group">
@@ -528,9 +534,8 @@ export default function CustomerLedgerPage() {
                   </div>
                 </CardContent>
               </Card>
-            </>
+            </div>
           )}
-        </div>
       </div>
     </div>
   );
