@@ -68,8 +68,6 @@ export default function CustomerLedgerPage() {
   const gameOptions = [
     'N/A',
     'Main Market',
-    'Starline Game',
-    'Jackpot Game',
     'Milan Day',
     'Milan Night',
     'Kalyan',
