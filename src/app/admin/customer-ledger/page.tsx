@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Loader } from '@/components/loader';
-import { Search, Download, Trash2, Plus, Calendar as CalendarIcon, User, Landmark, BookOpen, History } from 'lucide-react';
+import { Search, Download, Trash2, Plus, Calendar as CalendarIcon, User, Landmark, BookOpen, History, ArrowRight } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -88,7 +88,7 @@ export default function CustomerLedgerPage() {
     return () => unsub();
   }, []);
 
-  // Fetch unique user IDs that have ledger entries to sort them at top
+  // Fetch unique user IDs that have ledger entries
   useEffect(() => {
     const q = collection(db, 'customerLedger');
     const unsub = onSnapshot(q, (snap) => {
@@ -132,7 +132,7 @@ export default function CustomerLedgerPage() {
       list = list.filter(u => u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.mobile.includes(userSearch));
     }
 
-    // Sort Logic: Active users (with entries) first, then by name
+    // Sort Logic: Active users first, then by name
     return list.sort((a, b) => {
       const aActive = activeUserIds.has(a.id);
       const bActive = activeUserIds.has(b.id);
@@ -265,7 +265,7 @@ export default function CustomerLedgerPage() {
           <CardHeader className="bg-muted/30 pb-4">
             <CardTitle className="text-lg flex items-center gap-2">
               <User className="h-5 w-5 text-blue-600" />
-              Select Customer
+              Find Customer
             </CardTitle>
             <div className="relative pt-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -276,11 +276,6 @@ export default function CustomerLedgerPage() {
                 onChange={(e) => setUserSearch(e.target.value)}
               />
             </div>
-            {activeUserIds.size > 0 && (
-              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-2 px-1">
-                Recent active users shown at top
-              </p>
-            )}
           </CardHeader>
           <CardContent className="p-0">
             <div className="max-h-[600px] overflow-y-auto">
@@ -309,7 +304,11 @@ export default function CustomerLedgerPage() {
                       </div>
                       <p className={cn("text-xs", selectedUserId === u.id ? "text-blue-100" : "text-muted-foreground")}>{u.mobile}</p>
                     </div>
-                    {selectedUserId === u.id && <div className="h-2 w-2 rounded-full bg-white animate-pulse shrink-0 ml-2" />}
+                    {selectedUserId === u.id ? (
+                        <div className="h-2 w-2 rounded-full bg-white animate-pulse shrink-0 ml-2" />
+                    ) : (
+                        <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    )}
                   </div>
                 )
               })}
@@ -320,23 +319,60 @@ export default function CustomerLedgerPage() {
         {/* Ledger Details */}
         <div className="lg:col-span-8 space-y-6">
           {!selectedUserId ? (
-            <Card className="h-full rounded-2xl flex flex-col items-center justify-center p-20 text-muted-foreground border-2 border-dashed border-muted bg-white/50">
-              <div className="bg-muted h-20 w-20 rounded-full flex items-center justify-center mb-6">
-                <User className="h-10 w-10 opacity-20" />
-              </div>
-              <p className="font-bold text-lg">Please select a customer to view ledger</p>
-              <p className="text-sm opacity-60">Active customers are automatically moved to the top of the list.</p>
-            </Card>
+            <div className="space-y-6 animate-in fade-in duration-500">
+               <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-black text-gray-700 flex items-center gap-2">
+                    <History className="h-5 w-5 text-blue-600" />
+                    Quick Access: Active Accounts
+                  </h3>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{activeUserIds.size} Ledgers Found</p>
+               </div>
+               
+               {activeUserIds.size === 0 ? (
+                  <Card className="h-full rounded-2xl flex flex-col items-center justify-center p-20 text-muted-foreground border-2 border-dashed border-muted bg-white/50">
+                    <div className="bg-muted h-20 w-20 rounded-full flex items-center justify-center mb-6">
+                      <User className="h-10 w-10 opacity-20" />
+                    </div>
+                    <p className="font-bold text-lg text-center">No active ledgers yet</p>
+                    <p className="text-sm opacity-60 text-center max-w-xs mt-2">Search for a customer in the left sidebar to start their offline account.</p>
+                  </Card>
+               ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {users.filter(u => activeUserIds.has(u.id)).map(u => (
+                      <Card 
+                        key={u.id}
+                        onClick={() => setSelectedGameUserId(u.id)}
+                        className="p-5 rounded-2xl shadow-sm hover:shadow-xl hover:scale-[1.02] cursor-pointer transition-all border-none bg-white group"
+                      >
+                         <div className="flex items-center gap-4">
+                            <div className="h-12 w-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-black group-hover:bg-blue-600 group-hover:text-white transition-colors uppercase">
+                                {u.name.charAt(0)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="font-black text-gray-800 truncate">{u.name}</p>
+                                <p className="text-[10px] text-muted-foreground font-medium">{u.mobile}</p>
+                            </div>
+                         </div>
+                         <div className="mt-4 pt-4 border-t border-slate-50 flex justify-between items-center text-[10px] font-bold uppercase text-blue-600">
+                            <span>Open Ledger</span>
+                            <ArrowRight className="h-3 w-3" />
+                         </div>
+                      </Card>
+                    ))}
+                  </div>
+               )}
+            </div>
           ) : (
             <>
               {/* Summary & Filters */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <Card className="bg-white rounded-2xl shadow-md border-none flex flex-col justify-center p-6">
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Customer Net Balance</p>
-                    <p className={cn("text-4xl font-black", netBalance >= 0 ? "text-green-600" : "text-red-600")}>
+                 <Card className="bg-white rounded-2xl shadow-md border-none flex flex-col justify-center p-6 relative overflow-hidden group">
+                    <div className="absolute -right-4 -bottom-4 h-24 w-24 bg-blue-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 relative">Customer Net Balance</p>
+                    <p className={cn("text-4xl font-black relative", netBalance >= 0 ? "text-green-600" : "text-red-600")}>
                       ₹{netBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </p>
-                    <p className="text-[10px] text-muted-foreground mt-2 italic">* This balance is separate from app wallet.</p>
+                    <p className="text-[10px] text-muted-foreground mt-2 italic relative">* This balance is separate from app wallet.</p>
                  </Card>
 
                  <Card className="bg-white rounded-2xl shadow-md border-none p-6 space-y-4">
@@ -347,7 +383,7 @@ export default function CustomerLedgerPage() {
                     <div className="grid grid-cols-2 gap-2">
                         <Popover>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" className="h-10 text-[11px] justify-start px-2">
+                                <Button variant="outline" className="h-10 text-[11px] justify-start px-2 rounded-xl">
                                     <CalendarIcon className="mr-2 h-3 w-3" />
                                     {fromDate ? format(fromDate, 'dd/MM/yy') : 'From'}
                                 </Button>
@@ -356,7 +392,7 @@ export default function CustomerLedgerPage() {
                         </Popover>
                         <Popover>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" className="h-10 text-[11px] justify-start px-2">
+                                <Button variant="outline" className="h-10 text-[11px] justify-start px-2 rounded-xl">
                                     <CalendarIcon className="mr-2 h-3 w-3" />
                                     {toDate ? format(toDate, 'dd/MM/yy') : 'To'}
                                 </Button>
@@ -372,11 +408,12 @@ export default function CustomerLedgerPage() {
 
               {/* Add Entry Form */}
               <Card className="rounded-2xl shadow-lg border-none overflow-hidden">
-                <CardHeader className="bg-[#154c79] text-white p-4">
+                <CardHeader className="bg-[#154c79] text-white p-4 flex flex-row items-center justify-between">
                   <CardTitle className="text-base font-bold flex items-center gap-2">
                     <Plus className="h-5 w-5" />
-                    New Len-Den Entry
+                    New Entry for {users.find(u => u.id === selectedUserId)?.name}
                   </CardTitle>
+                  <Button variant="ghost" size="sm" className="text-white hover:bg-white/10 h-8" onClick={() => setSelectedGameUserId('')}>Back to Dashboard</Button>
                 </CardHeader>
                 <CardContent className="p-6">
                   <form onSubmit={handleAddEntry} className="grid grid-cols-1 md:grid-cols-3 gap-4">
