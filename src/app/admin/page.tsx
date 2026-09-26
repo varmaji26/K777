@@ -58,6 +58,7 @@ interface MonthlyStats {
     totalProfit: number;
     totalDeposit: number;
     totalWithdrawal: number;
+    totalLedgerNet: number;
     monthlyNetBalance: number;
 }
 
@@ -90,7 +91,7 @@ export default function AdminDashboardPage() {
     const [stats, setStats] = useState<AppStats | null>(null);
     const [dailyStats, setDailyStats] = useState<DailyStats>({ todaysDeposits: 0, todaysWithdrawals: 0, yesterdaysDeposits: 0, yesterdaysWithdrawals: 0 });
     const [biddingStats, setBiddingStats] = useState<BiddingStats>({ todaysBidding: 0, todaysWinning: 0, todaysProfitLoss: 0 });
-    const [monthlyStats, setMonthlyStats] = useState<MonthlyStats>({ totalBidding: 0, totalProfit: 0, totalDeposit: 0, totalWithdrawal: 0, monthlyNetBalance: 0 });
+    const [monthlyStats, setMonthlyStats] = useState<MonthlyStats>({ totalBidding: 0, totalProfit: 0, totalDeposit: 0, totalWithdrawal: 0, totalLedgerNet: 0, monthlyNetBalance: 0 });
     const [loading, setLoading] = useState(true);
     
     const { users } = useUserStore();
@@ -191,11 +192,12 @@ export default function AdminDashboardPage() {
         const depositsQuery = query(collection(db, "deposits"), where("createdAt", ">=", startOfMonth), where("createdAt", "<=", endOfMonth));
         const withdrawalsQuery = query(collection(db, "withdrawals"), where("createdAt", ">=", startOfMonth), where("createdAt", "<=", endOfMonth));
         const bidsQuery = query(collection(db, "bids"), where("createdAt", ">=", startOfMonth), where("createdAt", "<=", endOfMonth));
+        const ledgerQuery = query(collection(db, "customerLedger"), where("entryDate", ">=", startOfMonth), where("entryDate", "<=", endOfMonth));
         
         const unsubDeposits = onSnapshot(depositsQuery, (snap) => {
             const totalDeposit = sumApprovedAmount(snap);
             setMonthlyStats(s => {
-                const net = totalDeposit - (s.totalWithdrawal || 0);
+                const net = totalDeposit - (s.totalWithdrawal || 0) + (s.totalLedgerNet || 0);
                 return { ...s, totalDeposit, monthlyNetBalance: net };
             });
         });
@@ -203,8 +205,21 @@ export default function AdminDashboardPage() {
         const unsubWithdrawals = onSnapshot(withdrawalsQuery, (snap) => {
             const totalWithdrawal = sumApprovedAmount(snap);
             setMonthlyStats(s => {
-                const net = (s.totalDeposit || 0) - totalWithdrawal;
+                const net = (s.totalDeposit || 0) - totalWithdrawal + (s.totalLedgerNet || 0);
                 return { ...s, totalWithdrawal, monthlyNetBalance: net };
+            });
+        });
+
+        const unsubLedger = onSnapshot(ledgerQuery, (snap) => {
+            let ledgerNet = 0;
+            snap.forEach(doc => {
+                const data = doc.data();
+                if (data.type === 'credit') ledgerNet += Number(data.amount || 0);
+                else if (data.type === 'debit') ledgerNet -= Number(data.amount || 0);
+            });
+            setMonthlyStats(s => {
+                const net = (s.totalDeposit || 0) - (s.totalWithdrawal || 0) + ledgerNet;
+                return { ...s, totalLedgerNet: ledgerNet, monthlyNetBalance: net };
             });
         });
 
@@ -234,6 +249,7 @@ export default function AdminDashboardPage() {
             unsubDeposits();
             unsubWithdrawals();
             unsubBids();
+            unsubLedger();
         }
     }, [user]);
 
