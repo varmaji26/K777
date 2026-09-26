@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, setDoc, serverTimestamp, deleteDoc, where, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, setDoc, serverTimestamp, deleteDoc, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Loader } from '@/components/loader';
-import { Search, Download, Trash2, Plus, Calendar as CalendarIcon, User, Landmark, ArrowUpCircle, ArrowDownCircle, BookOpen } from 'lucide-react';
+import { Search, Download, Trash2, Plus, Calendar as CalendarIcon, User, Landmark, BookOpen } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -94,10 +94,10 @@ export default function CustomerLedgerPage() {
       return;
     }
     setLoading(true);
+    // REMOVED orderBy to avoid composite index requirement
     const q = query(
       collection(db, 'customerLedger'),
-      where('userId', '==', selectedUserId),
-      orderBy('entryDate', 'desc')
+      where('userId', '==', selectedUserId)
     );
     
     const unsub = onSnapshot(q, (snap) => {
@@ -117,7 +117,15 @@ export default function CustomerLedgerPage() {
   }, [users, userSearch]);
 
   const filteredEntries = useMemo(() => {
-    let result = entries;
+    let result = [...entries];
+    
+    // Perform client-side sorting to avoid the need for a composite index in Firestore
+    result.sort((a, b) => {
+        const timeA = a.entryDate?.toMillis() || 0;
+        const timeB = b.entryDate?.toMillis() || 0;
+        return timeB - timeA;
+    });
+
     if (fromDate) {
       const start = new Date(fromDate);
       start.setHours(0, 0, 0, 0);
