@@ -1,6 +1,6 @@
 'use client';
 import { Button } from '@/components/ui/button';
-import { Bell, ChevronRight, Gamepad2, LogOut, Settings, User, Home, Eye, Users, PlusSquare, Image as ImageIcon, MessageSquare, Send, CheckCircle, XCircle, BarChart2, LineChart, History, Award, Gift, FileText, FileSpreadsheet, Lock, Shield, Settings2, BarChart, FileDigit, PanelTop, Menu, ChevronDown, ArrowUp, ArrowDown, Share2, Star, Trophy, Search } from 'lucide-react';
+import { Bell, ChevronRight, Gamepad2, LogOut, Settings, User, Home, Eye, Users, PlusSquare, Image as ImageIcon, MessageSquare, Send, CheckCircle, XCircle, BarChart2, LineChart, History, Award, Gift, FileText, FileSpreadsheet, Lock, Shield, Settings2, BarChart, FileDigit, PanelTop, Menu, ChevronDown, ArrowUp, ArrowDown, Share2, Star, Trophy, Search, BookOpen } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
 import Link from 'next/link';
@@ -94,6 +94,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
     const adminNavLinks = [
       { key: 'dashboard', href: '/admin', label: 'Dashboard', icon: Home },
       { key: 'users', href: '/admin/users', label: 'Registered Users', icon: Users, badgeCount: newUsersCount },
+      { key: 'ledger', href: '/admin/customer-ledger', label: 'Customer Len Den', icon: BookOpen },
       { key: 'add-game', href: '/admin/games', label: 'Add New Game', icon: PlusSquare },
       { key: 'manage-starline', href: '/admin/starline', label: 'Manage Starline', icon: Star },
       { key: 'manage-jackpot', href: '/admin/jackpot', label: 'Manage Jackpot', icon: Trophy },
@@ -128,7 +129,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
     
     if (!currentUser) return null;
     
-    const topLinks = adminNavLinks.filter(l => ['dashboard', 'users', 'add-game', 'manage-starline', 'manage-jackpot', 'banners'].includes(l.key));
+    const topLinks = adminNavLinks.filter(l => ['dashboard', 'users', 'ledger', 'add-game', 'manage-starline', 'manage-jackpot', 'banners'].includes(l.key));
     const managementLinks = adminNavLinks.filter(l => 
         !l.isSubItem && 
         !topLinks.some(top => top.key === l.key) && 
@@ -205,7 +206,7 @@ const SidebarContent = ({ closeSheet }: { closeSheet?: () => void }) => {
             </div>
 
             <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-                {topLinks.filter(l => ['dashboard', 'users'].includes(l.key)).map(renderLink)}
+                {topLinks.filter(l => ['dashboard', 'users', 'ledger'].includes(l.key)).map(renderLink)}
 
                 <Collapsible>
                     <CollapsibleTrigger className="w-full text-left">
