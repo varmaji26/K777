@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from '@/components/ui/sheet';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 // Types
 interface LedgerEntry {
@@ -522,9 +523,25 @@ export default function CustomerLedgerPage() {
                                 </div>
                               </TableCell>
                               <TableCell className="text-right">
-                                <Button variant="ghost" size="icon" onClick={() => handleDeleteEntry(e.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600 hover:bg-red-50">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent className="max-w-[340px] rounded-2xl p-6 border-none shadow-2xl">
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle className="text-xl font-black text-slate-900">Confirm Deletion</AlertDialogTitle>
+                                      <AlertDialogDescription className="text-sm font-medium text-slate-500">
+                                        Are you sure you want to delete this entry? This action cannot be undone.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter className="flex flex-col gap-2 mt-4">
+                                      <AlertDialogAction onClick={() => handleDeleteEntry(e.id)} className="rounded-xl h-11 bg-red-600 hover:bg-red-700 text-white font-bold">Yes, Delete Entry</AlertDialogAction>
+                                      <AlertDialogCancel className="rounded-xl h-11 border-slate-100 font-bold text-slate-400">Cancel</AlertDialogCancel>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
                               </TableCell>
                             </TableRow>
                           ))
