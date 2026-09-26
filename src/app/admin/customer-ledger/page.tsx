@@ -28,7 +28,6 @@ interface LedgerEntry {
   userName: string;
   amount: number;
   type: 'credit' | 'debit';
-  gameName: string;
   description: string;
   entryDate: Timestamp;
   createdAt: any;
@@ -66,20 +65,8 @@ export default function CustomerLedgerPage() {
   // Form
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'credit' | 'debit'>('credit');
-  const [gameName, setGameName] = useState('Main Market');
   const [description, setDescription] = useState('');
   const [entryDate, setEntryDate] = useState<Date>(new Date());
-
-  const gameOptions = [
-    'Main Market',
-    'Milan Day',
-    'Milan Night',
-    'Kalyan',
-    'Rajdhani Day',
-    'Rajdhani Night',
-    'Main Bazar',
-    'Time Bazar'
-  ];
 
   // Fetch all users for selection
   useEffect(() => {
@@ -196,7 +183,6 @@ export default function CustomerLedgerPage() {
         userName: user?.name || 'Unknown',
         amount: parseFloat(amount),
         type,
-        gameName,
         description,
         entryDate: Timestamp.fromDate(entryDate),
         createdAt: serverTimestamp(),
@@ -234,10 +220,9 @@ export default function CustomerLedgerPage() {
     doc.text(`Date Range: ${fromDate ? format(fromDate, 'dd/MM/yyyy') : 'Start'} to ${toDate ? format(toDate, 'dd/MM/yyyy') : 'End'}`, 14, 34);
     doc.text(`Final Net Balance: INR ${netBalance.toFixed(2)}`, 14, 40);
 
-    const tableColumn = ["Date", "Game", "Description", "Type", "Amount"];
+    const tableColumn = ["Date", "Description", "Type", "Amount"];
     const tableRows = filteredEntries.map(e => [
       format(e.entryDate.toDate(), 'dd/MM/yy'),
-      e.gameName,
       e.description || '-',
       e.type.toUpperCase(),
       e.amount.toFixed(2)
@@ -432,7 +417,7 @@ export default function CustomerLedgerPage() {
                   <Button variant="ghost" size="sm" className="text-white hover:bg-white/10 h-7 md:h-8 text-[10px] md:text-sm" onClick={() => setSelectedGameUserId('')}>Dashboard</Button>
                 </CardHeader>
                 <CardContent className="p-4 md:p-6">
-                  <form onSubmit={handleAddEntry} className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                  <form onSubmit={handleAddEntry} className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                     <div className="space-y-1">
                       <Label className="text-[9px] md:text-xs uppercase font-bold text-muted-foreground">Amount</Label>
                       <Input 
@@ -456,17 +441,6 @@ export default function CustomerLedgerPage() {
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[9px] md:text-xs uppercase font-bold text-muted-foreground">Market / Game</Label>
-                      <Select value={gameName} onValueChange={setGameName}>
-                        <SelectTrigger className="h-10 md:h-11 rounded-xl text-xs md:text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {gameOptions.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1 md:col-span-2">
                       <Label className="text-[9px] md:text-xs uppercase font-bold text-muted-foreground">Remarks</Label>
                       <Input 
                         placeholder="Optional" 
@@ -487,7 +461,7 @@ export default function CustomerLedgerPage() {
                         <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={entryDate} onSelect={(d) => d && setEntryDate(d)} initialFocus /></PopoverContent>
                       </Popover>
                     </div>
-                    <div className="md:col-span-3 pt-1 md:pt-2">
+                    <div className="md:col-span-2 pt-1 md:pt-2">
                         <Button type="submit" className="w-full h-11 md:h-12 rounded-xl bg-green-600 hover:bg-green-700 font-bold text-white shadow-md text-sm" disabled={isSubmitting}>
                             {isSubmitting ? <Loader className="h-5 w-5" /> : "Save Entry"}
                         </Button>
@@ -507,7 +481,7 @@ export default function CustomerLedgerPage() {
                       <TableHeader className="bg-slate-50">
                         <TableRow>
                           <TableHead className="text-[8px] md:text-[10px] uppercase font-bold px-2 md:px-4">Date</TableHead>
-                          <TableHead className="text-[8px] md:text-[10px] uppercase font-bold px-2 md:px-4">Game</TableHead>
+                          <TableHead className="text-[8px] md:text-[10px] uppercase font-bold px-2 md:px-4">Description</TableHead>
                           <TableHead className="text-right text-[8px] md:text-[10px] uppercase font-bold px-2 md:px-4">Amount</TableHead>
                           <TableHead className="text-right text-[8px] md:text-[10px] uppercase font-bold px-2 md:px-4"></TableHead>
                         </TableRow>
@@ -521,7 +495,7 @@ export default function CustomerLedgerPage() {
                           filteredEntries.map((e) => (
                             <TableRow key={e.id} className="hover:bg-slate-50">
                               <TableCell className="text-[10px] md:text-xs font-medium px-2 md:px-4">{format(e.entryDate.toDate(), 'dd/MM/yy')}</TableCell>
-                              <TableCell className="text-[10px] md:text-xs font-bold text-[#154c79] px-2 md:px-4">{e.gameName}</TableCell>
+                              <TableCell className="text-[10px] md:text-xs font-bold text-[#154c79] px-2 md:px-4">{e.description || '-'}</TableCell>
                               <TableCell className="text-right px-2 md:px-4">
                                 <div className="flex flex-col items-end">
                                   <span className={cn("text-xs md:text-sm font-black", e.type === 'credit' ? "text-green-600" : "text-red-600")}>
