@@ -11,12 +11,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Loader } from '@/components/loader';
-import { Search, Download, Trash2, Plus, Calendar as CalendarIcon, User, Landmark, BookOpen } from 'lucide-react';
+import { Search, Download, Trash2, Plus, Calendar as CalendarIcon, User, Landmark, BookOpen, History } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import jsPDF from 'jspdf';
+import jsPDF from 'jsPDF';
 import 'jspdf-autotable';
 
 // Types
@@ -48,6 +48,7 @@ declare module 'jspdf' {
 export default function CustomerLedgerPage() {
   const { toast } = useToast();
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [activeUserIds, setActiveUserIds] = useState<Set<string>>(new Set());
   const [selectedUserId, setSelectedGameUserId] = useState<string>('');
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -87,6 +88,20 @@ export default function CustomerLedgerPage() {
     return () => unsub();
   }, []);
 
+  // Fetch unique user IDs that have ledger entries to sort them at top
+  useEffect(() => {
+    const q = collection(db, 'customerLedger');
+    const unsub = onSnapshot(q, (snap) => {
+      const ids = new Set<string>();
+      snap.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.userId) ids.add(data.userId);
+      });
+      setActiveUserIds(ids);
+    });
+    return () => unsub();
+  }, []);
+
   // Fetch entries for selected user
   useEffect(() => {
     if (!selectedUserId) {
@@ -94,7 +109,6 @@ export default function CustomerLedgerPage() {
       return;
     }
     setLoading(true);
-    // REMOVED orderBy to avoid composite index requirement
     const q = query(
       collection(db, 'customerLedger'),
       where('userId', '==', selectedUserId)
@@ -112,14 +126,27 @@ export default function CustomerLedgerPage() {
   }, [selectedUserId]);
 
   const filteredUsers = useMemo(() => {
-    if (!userSearch) return users;
-    return users.filter(u => u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.mobile.includes(userSearch));
-  }, [users, userSearch]);
+    let list = [...users];
+    
+    if (userSearch) {
+      list = list.filter(u => u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.mobile.includes(userSearch));
+    }
+
+    // Sort Logic: Active users (with entries) first, then by name
+    return list.sort((a, b) => {
+      const aActive = activeUserIds.has(a.id);
+      const bActive = activeUserIds.has(b.id);
+      
+      if (aActive && !bActive) return -1;
+      if (!aActive && bActive) return 1;
+      
+      return a.name.localeCompare(b.name);
+    });
+  }, [users, userSearch, activeUserIds]);
 
   const filteredEntries = useMemo(() => {
     let result = [...entries];
     
-    // Perform client-side sorting to avoid the need for a composite index in Firestore
     result.sort((a, b) => {
         const timeA = a.entryDate?.toMillis() || 0;
         const timeB = b.entryDate?.toMillis() || 0;
@@ -234,7 +261,7 @@ export default function CustomerLedgerPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* User Selection Sidebar */}
-        <Card className="lg:col-span-4 rounded-2xl shadow-lg border-none overflow-hidden">
+        <Card className="lg:col-span-4 rounded-2xl shadow-lg border-none overflow-hidden h-fit">
           <CardHeader className="bg-muted/30 pb-4">
             <CardTitle className="text-lg flex items-center gap-2">
               <User className="h-5 w-5 text-blue-600" />
@@ -244,30 +271,48 @@ export default function CustomerLedgerPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
                 placeholder="Search name or mobile..." 
-                className="pl-9 bg-white border-none shadow-inner"
+                className="pl-9 bg-white border-none shadow-inner h-11"
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
               />
             </div>
+            {activeUserIds.size > 0 && (
+              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-2 px-1">
+                Recent active users shown at top
+              </p>
+            )}
           </CardHeader>
           <CardContent className="p-0">
-            <div className="max-h-[500px] overflow-y-auto">
-              {filteredUsers.map(u => (
-                <div 
-                  key={u.id}
-                  onClick={() => setSelectedGameUserId(u.id)}
-                  className={cn(
-                    "p-4 border-b last:border-none cursor-pointer transition-all flex justify-between items-center",
-                    selectedUserId === u.id ? "bg-blue-600 text-white" : "hover:bg-blue-50"
-                  )}
-                >
-                  <div>
-                    <p className="font-bold">{u.name}</p>
-                    <p className={cn("text-xs", selectedUserId === u.id ? "text-blue-100" : "text-muted-foreground")}>{u.mobile}</p>
+            <div className="max-h-[600px] overflow-y-auto">
+              {filteredUsers.map(u => {
+                const isActive = activeUserIds.has(u.id);
+                return (
+                  <div 
+                    key={u.id}
+                    onClick={() => setSelectedGameUserId(u.id)}
+                    className={cn(
+                      "p-4 border-b last:border-none cursor-pointer transition-all flex justify-between items-center group",
+                      selectedUserId === u.id ? "bg-blue-600 text-white" : "hover:bg-blue-50"
+                    )}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold truncate">{u.name}</p>
+                        {isActive && (
+                           <div className={cn(
+                             "flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase",
+                             selectedUserId === u.id ? "bg-white/20 text-white" : "bg-blue-100 text-blue-600"
+                           )}>
+                             <History className="h-2 w-2" /> History
+                           </div>
+                        )}
+                      </div>
+                      <p className={cn("text-xs", selectedUserId === u.id ? "text-blue-100" : "text-muted-foreground")}>{u.mobile}</p>
+                    </div>
+                    {selectedUserId === u.id && <div className="h-2 w-2 rounded-full bg-white animate-pulse shrink-0 ml-2" />}
                   </div>
-                  {selectedUserId === u.id && <div className="h-2 w-2 rounded-full bg-white animate-pulse" />}
-                </div>
-              ))}
+                )
+              })}
             </div>
           </CardContent>
         </Card>
@@ -275,9 +320,12 @@ export default function CustomerLedgerPage() {
         {/* Ledger Details */}
         <div className="lg:col-span-8 space-y-6">
           {!selectedUserId ? (
-            <Card className="h-full rounded-2xl flex flex-col items-center justify-center p-20 text-muted-foreground border-2 border-dashed border-muted">
-              <User className="h-16 w-16 mb-4 opacity-10" />
+            <Card className="h-full rounded-2xl flex flex-col items-center justify-center p-20 text-muted-foreground border-2 border-dashed border-muted bg-white/50">
+              <div className="bg-muted h-20 w-20 rounded-full flex items-center justify-center mb-6">
+                <User className="h-10 w-10 opacity-20" />
+              </div>
               <p className="font-bold text-lg">Please select a customer to view ledger</p>
+              <p className="text-sm opacity-60">Active customers are automatically moved to the top of the list.</p>
             </Card>
           ) : (
             <>
@@ -396,7 +444,7 @@ export default function CustomerLedgerPage() {
               </Card>
 
               {/* Transactions Table */}
-              <Card className="rounded-2xl shadow-lg border-none overflow-hidden">
+              <Card className="rounded-2xl shadow-lg border-none overflow-hidden bg-white">
                 <CardHeader className="bg-muted/30 pb-2">
                     <CardTitle className="text-base font-bold">Recent History</CardTitle>
                 </CardHeader>
