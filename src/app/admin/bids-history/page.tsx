@@ -3,13 +3,13 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { collection, query, DocumentData, orderBy, Timestamp, onSnapshot, where, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
+import { collection, query, DocumentData, orderBy, Timestamp, onSnapshot, where, getDocs, writeBatch, updateDoc, doc, runTransaction, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader } from '@/components/loader';
 import { Badge } from '@/components/ui/badge';
-import { Search, Calendar as CalendarIcon, Download, XCircle, Trash2, Edit } from 'lucide-react';
+import { Search, Calendar as CalendarIcon, Download, XCircle, Trash2, Edit, Lock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -19,8 +19,8 @@ import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { runTransaction, doc, increment } from 'firebase/firestore';
 import { EditBidForm } from './components/edit-bid-form';
 import { logTransaction } from '@/lib/transactions';
 
@@ -60,6 +60,11 @@ export default function AdminBidHistoryPage() {
   
   const [currentPage, setCurrentPage] = useState(1);
   const [editingBid, setEditingBid] = useState<Bid | null>(null);
+
+  // Password Protection States
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+  const [enteredPassword, setEnteredPassword] = useState('');
+  const [pendingEditBid, setPendingEditBid] = useState<Bid | null>(null);
 
   const viewed = searchParams.get('viewed');
 
@@ -288,6 +293,28 @@ export default function AdminBidHistoryPage() {
         }
     };
 
+    const handleEditClick = (bid: Bid) => {
+        setPendingEditBid(bid);
+        setEnteredPassword('');
+        setIsPasswordDialogOpen(true);
+    };
+
+    const handlePasswordSubmit = (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (enteredPassword === '9343') {
+            setEditingBid(pendingEditBid);
+            setIsPasswordDialogOpen(false);
+            setPendingEditBid(null);
+            setEnteredPassword('');
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Incorrect Password',
+                description: 'Please enter the correct 4-digit security PIN.',
+            });
+        }
+    };
+
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
@@ -338,6 +365,42 @@ export default function AdminBidHistoryPage() {
                 onSave={handleSaveBid}
             />
         )}
+
+        <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+            <DialogContent className="max-w-[340px] rounded-2xl p-6 border-none shadow-2xl font-normal">
+                <div className="text-center space-y-4">
+                    <div className="h-16 w-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto text-blue-600 shadow-inner">
+                        <Lock className="h-8 w-8" />
+                    </div>
+                    <DialogHeader>
+                        <DialogTitle className="text-center text-xl font-bold text-gray-800 tracking-tight">Security Check</DialogTitle>
+                        <DialogDescription className="text-center text-xs font-medium leading-relaxed text-muted-foreground">
+                            Please enter the 4-digit security PIN to edit this bid.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handlePasswordSubmit} className="space-y-4 pt-2">
+                        <Input 
+                            type="password" 
+                            placeholder="Enter 4-digit PIN" 
+                            className="h-12 text-center text-2xl tracking-[0.5em] font-black rounded-xl bg-slate-50 border-slate-100 focus:ring-blue-500"
+                            value={enteredPassword}
+                            onChange={(e) => setEnteredPassword(e.target.value)}
+                            maxLength={4}
+                            autoFocus
+                        />
+                        <div className="flex flex-col gap-2">
+                            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-11 font-bold shadow-lg shadow-blue-100 border-none text-sm">
+                                Verify & Proceed
+                            </Button>
+                            <Button type="button" variant="ghost" onClick={() => setIsPasswordDialogOpen(false)} className="rounded-xl h-10 text-slate-400 font-bold text-xs">
+                                Cancel
+                            </Button>
+                        </div>
+                    </form>
+                </div>
+            </DialogContent>
+        </Dialog>
+
         <Card>
           <CardHeader>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -471,7 +534,7 @@ export default function AdminBidHistoryPage() {
                                     <TableCell className="text-right p-2">
                                         {bid.status === 'running' && (
                                             <div className="flex gap-2 justify-end">
-                                                <Button variant="outline" size="sm" onClick={() => setEditingBid(bid)}>
+                                                <Button variant="outline" size="sm" onClick={() => handleEditClick(bid)}>
                                                     <Edit className="h-4 w-4 mr-1" />
                                                     Edit
                                                 </Button>
