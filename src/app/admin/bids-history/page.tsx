@@ -367,32 +367,32 @@ export default function AdminBidHistoryPage() {
         )}
 
         <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
-            <DialogContent className="max-w-[340px] rounded-2xl p-6 border-none shadow-2xl font-normal">
-                <div className="text-center space-y-4">
-                    <div className="h-16 w-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto text-blue-600 shadow-inner">
-                        <Lock className="h-8 w-8" />
+            <DialogContent className="max-w-[300px] rounded-2xl p-5 border-none shadow-2xl font-normal">
+                <div className="text-center space-y-3">
+                    <div className="h-12 w-12 bg-blue-50 rounded-xl flex items-center justify-center mx-auto text-blue-600 shadow-inner">
+                        <Lock className="h-6 w-6" />
                     </div>
                     <DialogHeader>
-                        <DialogTitle className="text-center text-xl font-bold text-gray-800 tracking-tight">Security Check</DialogTitle>
-                        <DialogDescription className="text-center text-xs font-medium leading-relaxed text-muted-foreground">
-                            Please enter the 4-digit security PIN to edit this bid.
+                        <DialogTitle className="text-center text-lg font-bold text-gray-800 tracking-tight">Security Check</DialogTitle>
+                        <DialogDescription className="text-center text-[10px] font-medium leading-relaxed text-muted-foreground">
+                            Enter 4-digit security PIN to edit this bid.
                         </DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={handlePasswordSubmit} className="space-y-4 pt-2">
+                    <form onSubmit={handlePasswordSubmit} className="space-y-3 pt-1">
                         <Input 
                             type="password" 
-                            placeholder="Enter 4-digit PIN" 
-                            className="h-12 text-center text-2xl tracking-[0.5em] font-black rounded-xl bg-slate-50 border-slate-100 focus:ring-blue-500"
+                            placeholder="PIN" 
+                            className="h-10 text-center text-xl tracking-[0.5em] font-black rounded-xl bg-slate-50 border-slate-100 focus:ring-blue-500"
                             value={enteredPassword}
                             onChange={(e) => setEnteredPassword(e.target.value)}
                             maxLength={4}
                             autoFocus
                         />
-                        <div className="flex flex-col gap-2">
-                            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-11 font-bold shadow-lg shadow-blue-100 border-none text-sm">
+                        <div className="flex flex-col gap-1.5">
+                            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 font-bold shadow-lg shadow-blue-100 border-none text-xs">
                                 Verify & Proceed
                             </Button>
-                            <Button type="button" variant="ghost" onClick={() => setIsPasswordDialogOpen(false)} className="rounded-xl h-10 text-slate-400 font-bold text-xs">
+                            <Button type="button" variant="ghost" onClick={() => setIsPasswordDialogOpen(false)} className="rounded-xl h-8 text-slate-400 font-bold text-[10px]">
                                 Cancel
                             </Button>
                         </div>
